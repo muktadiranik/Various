@@ -28,10 +28,10 @@ finally:
     print(os.listdir("."))
     os.remove("text.txt")
 
-poem = "Mary had a little lamb"
-"Its fleece was white as snow"
-"And everywhere that Mary went"
-"The lamb was sure to go"
+poem = "Mary had a little lamb \n\
+Its fleece was white as snow \n\
+And everywhere that Mary went \n\
+The lamb was sure to go"
 
 try:
     with open("poem.txt", mode="w", encoding="utf-8") as file:
@@ -45,6 +45,26 @@ finally:
 try:
     with open("poem.txt", mode="r", encoding="utf-8") as file:
         print(file.readline())
+except Exception as e:
+    print(e)
+finally:
+    file.close()
+    print(file.closed)
+
+
+# ---------- PROBLEM : ANALYZE THE FILE ----------
+try:
+    with open("poem.txt", mode="r", encoding="utf-8") as file:
+        while True:
+            line = file.readline()
+            print(f"line: {line}")
+            print([(word, len(word)) for word in line.split()])
+            print(
+                f"word: {line.split()}, character count: {[(len(word)) for word in line.split()]}"
+            )
+            print(f"word count: {len(line.split())}")
+            if not line:
+                break
 except Exception as e:
     print(e)
 finally:
