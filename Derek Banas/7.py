@@ -86,3 +86,35 @@ def print_fibonacci_sequence():
 
 
 print_fibonacci_sequence()
+
+
+# ---------- TUPLES ----------
+tuple_1 = (1, 2, 3, 4, 5)
+print(tuple_1)
+print(tuple_1[0:2])
+print(len(tuple_1))
+print(tuple_1.count(1))
+print(tuple_1.index(1))
+
+tuple_2 = tuple_1 + (6, 7, 8, 9, 10)
+print(tuple_2)
+print(f"tuple_1 * 2: {tuple_1 * 2}")
+print(tuple_1[0])
+
+print(2 in tuple_1)
+
+for i in tuple_2:
+    print(i, end=" ")
+    print(i % 2 == 0, end=" ")
+
+# Convert a List into a Tuple
+list_1 = [1, 2, 3, 4, 5]
+tuple_1 = tuple[int, ...](list_1)
+print(type(tuple_1))
+
+# Convert a Tuple into a List
+list_1 = list(tuple_1)
+print(type(list_1))
+
+print(max(tuple_1))
+print(min(tuple_1))
