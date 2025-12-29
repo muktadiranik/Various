@@ -9,6 +9,7 @@ import threading
 import time
 import random
 
+
 def executeThread(i):
 
     # strftime or string formatted time allows you to
@@ -17,8 +18,7 @@ def executeThread(i):
     # strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
     # Print when the thread went to sleep
-    print("Thread {} sleeps at {}".format(i,
-                    time.strftime("%H:%M:%S", time.gmtime())))
+    print("Thread {} sleeps at {}".format(i, time.strftime("%H:%M:%S", time.gmtime())))
 
     # Generate a random sleep period of between 1 and
     # 5 seconds
@@ -29,8 +29,12 @@ def executeThread(i):
     time.sleep(randSleepTime)
 
     # Print out info after the sleep time
-    print("Thread {} stops sleeping at {}".format(i,
-                    time.strftime("%H:%M:%S", time.gmtime())))
+    print(
+        "Thread {} stops sleeping at {}".format(
+            i, time.strftime("%H:%M:%S", time.gmtime())
+        )
+    )
+
 
 for i in range(10):
 
@@ -56,6 +60,7 @@ for i in range(10):
 # what happens each time a new thread is executed
 # or run
 
+
 class CustThread(threading.Thread):
 
     def __init__(self, name):
@@ -69,13 +74,16 @@ class CustThread(threading.Thread):
 
         print("Thread", self.name, "Execution Ends")
 
+
 def getTime(name):
-    print("Thread {} sleeps at {}".format(name,
-                    time.strftime("%H:%M:%S", time.gmtime())))
+    print(
+        "Thread {} sleeps at {}".format(name, time.strftime("%H:%M:%S", time.gmtime()))
+    )
 
     randSleepTime = random.randint(1, 5)
 
     time.sleep(randSleepTime)
+
 
 # Create thread objects
 thread1 = CustThread("1")
@@ -109,7 +117,8 @@ print("Execution Ends")
 # that if more then 1 person tries to withdrawal money at
 # once we don't give out more money then is in the account
 
-class BankAccount (threading.Thread):
+
+class BankAccount(threading.Thread):
 
     acctBalance = 100
 
@@ -130,9 +139,13 @@ class BankAccount (threading.Thread):
 
     @staticmethod
     def getMoney(customer):
-        print("{} tries to withdrawal ${} at {}".format(customer.name,
+        print(
+            "{} tries to withdrawal ${} at {}".format(
+                customer.name,
                 customer.moneyRequest,
-                time.strftime("%H:%M:%S", time.gmtime())))
+                time.strftime("%H:%M:%S", time.gmtime()),
+            )
+        )
 
         if BankAccount.acctBalance - customer.moneyRequest > 0:
             BankAccount.acctBalance -= customer.moneyRequest
@@ -142,6 +155,7 @@ class BankAccount (threading.Thread):
             print("Current balance : ${}".format(BankAccount.acctBalance))
 
         time.sleep(3)
+
 
 # Create a lock to be used by threads
 threadLock = threading.Lock()
