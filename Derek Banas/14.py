@@ -55,5 +55,53 @@ print(re.search(pattern="\\stuff", string=the_string))
 print(re.search(pattern="\\\\stuff", string=the_string))
 print(re.search(pattern=r"\\stuff", string=the_string))
 
-the_string = "A. B. C.  D. E. F. GHI"
+the_string = "A.B.C.  D.E.F. GHI"
 print(re.findall(pattern=".\..\..", string=the_string))
+
+
+the_string = """This is a multiline string,
+this is the second line,
+this is the third line
+"""
+print(the_string)
+
+_regex = re.compile("\n")
+result = _regex.sub(" ", the_string)
+print(result)
+
+
+the_string = "1 2 3 4 5 11 222 3333 44444 555555"
+print(re.findall(pattern="\d", string=the_string))
+print(re.findall(pattern="\d{1}", string=the_string))
+print(re.findall(pattern="\d{1,3}", string=the_string))
+print(re.findall(pattern="\d{5,7}", string=the_string))
+
+
+# ---------- Matching Any Single Letter or Number ----------
+# \w is the same as [a-zA-Z0-9_]
+# \W is the same as [^a-zA-Z0-9_]
+
+the_string = "412-555-1212"
+if re.search(pattern="\w{3}-\w{3}-\w{4}", string=the_string):
+    print("It is a phone number")
+
+
+# ---------- Matching WhiteSpace ----------
+# \s is the same as [\f\n\r\t\v]
+# \S is the same as [^\f\n\r\t\v]
+
+the_string = "Jhon Walker"
+if re.search(pattern="\w{2,20}", string=the_string):
+    print("It is a valid name")
+
+if re.search(pattern="\w{2,20}\s\w{2,20}", string=the_string):
+    print("It is a valid full name")
+
+if re.search(pattern="J+", string=the_string):
+    print("It is a valid string")
+
+
+the_string = "db@aol.com m@.com @apple.com db@.com"
+print(
+    re.findall(pattern="[\w._%+-]{1,20}@[\w.-]{2,20}.[A-Za-z]{2,3}", string=the_string)
+)
