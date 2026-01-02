@@ -72,7 +72,7 @@ for i in matches:
 # ---------- GROUP ----------
 # We can use group to retrieve parts of regex
 # matches
-'''
+"""
 bd = input("Enter your birthday (mm-dd-yyyy) : ")
 
 bdRegex = re.search(r"(\d{1,2})-(\d{1,2})-(\d{4})", bd)
@@ -81,7 +81,7 @@ print("You were born on", bdRegex.group())
 print("Birth Month", bdRegex.group(1))
 print("Birth Day", bdRegex.group(2))
 print("Birth Year", bdRegex.group(3))
-'''
+"""
 
 # ---------- MATCH OBJECT FUNCTIONS ----------
 # There are functions that provide more information
@@ -110,9 +110,9 @@ regex = r"^(?P<month>\w+)\s(?P<day>\d+)\s(?P<year>\d+)"
 
 matches = re.search(regex, randStr)
 
-print("Month :", matches.group('month'))
-print("Day :", matches.group('day'))
-print("Year :", matches.group('year'))
+print("Month :", matches.group("month"))
+print("Day :", matches.group("day"))
+print("Year :", matches.group("year"))
 
 # ---------- PROBLEM ----------
 # Find all of the following email addresses
@@ -133,7 +133,9 @@ for i in matches:
 
 randStr = "14125551212 4125551212 (412)5551212 412 555 1212 412-555-1212 1-412-555-1212"
 
-regex = re.compile(r"((1?)(-| ?)(\()?(\d{3})(\)|-| |\)-|\) )?(\d{3})(-| )?(\d{4}|\d{4}))")
+regex = re.compile(
+    r"((1?)(-| ?)(\()?(\d{3})(\)|-| |\)-|\) )?(\d{3})(-| )?(\d{4}|\d{4}))"
+)
 
 matches = re.findall(regex, randStr)
 
