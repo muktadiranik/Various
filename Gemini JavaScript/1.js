@@ -30,3 +30,11 @@ console.log(firstName, age);
 
 const updatedUser = { ...user, age: 31, email: "qYf7o@example.com" };
 console.log(updatedUser);
+
+async function fetchData(data) {
+  console.log("fetching data");
+
+  await new Promise((resolve) => setTimeout(resolve, 100));
+}
+
+fetchData("Financials");
