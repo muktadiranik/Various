@@ -1,0 +1,92 @@
+[
+  {
+    "name": "Mosh Node Mongo Course",
+    "description": "A comprehensive course on Node.js and MongoDB.",
+    "author": "Mosh Hamedani",
+    "duration": "10 hours",
+    "level": "Intermediate",
+    "tags": ["Node.js", "MongoDB", "Database", "Backend Development"],
+    "price": 49.99
+  },
+  {
+    "name": "Advanced MongoDB Techniques",
+    "description": "Deep dive into advanced MongoDB features and optimization techniques.",
+    "author": "Mosh Hamedani",
+    "duration": "8 hours",
+    "level": "Advanced",
+    "tags": ["MongoDB", "Database Optimization", "NoSQL"],
+    "price": 59.99
+  },
+  {
+    "name": "Node.js for Beginners",
+    "description": "An introductory course to Node.js for absolute beginners.",
+    "author": "Mosh Hamedani",
+    "duration": "6 hours",
+    "level": "Beginner",
+    "tags": ["Node.js", "JavaScript", "Backend Development"],
+    "price": 39.99
+  },
+  {
+    "name": "Full-Stack Development with Node.js and MongoDB",
+    "description": "Learn to build full-stack applications using Node.js and MongoDB.",
+    "author": "Mosh Hamedani",
+    "duration": "12 hours",
+    "level": "Intermediate",
+    "tags": ["Full-Stack Development", "Node.js", "MongoDB", "Web Development"],
+    "price": 69.99
+  },
+  {
+    "name": "Building RESTful APIs with Node.js and MongoDB",
+    "description": "Create robust RESTful APIs using Node.js and MongoDB.",
+    "author": "Mosh Hamedani",
+    "duration": "9 hours",
+    "level": "Intermediate",
+    "tags": ["RESTful APIs", "Node.js", "MongoDB", "Backend Development"],
+    "price": 54.99
+  },
+  {
+    "name": "Deploying Node.js and MongoDB Applications",
+    "description": "Learn how to deploy Node.js and MongoDB applications to the cloud.",
+    "author": "Mosh Hamedani",
+    "duration": "7 hours",
+    "level": "Advanced",
+    "tags": ["Deployment", "Node.js", "MongoDB", "Cloud"],
+    "price": 64.99
+  },
+  {
+    "name": "Testing Node.js Applications with MongoDB",
+    "description": "A course focused on testing strategies for Node.js applications using MongoDB.",
+    "author": "Mosh Hamedani",
+    "duration": "5 hours",
+    "level": "Intermediate",
+    "tags": ["Testing", "Node.js", "MongoDB", "Backend Development"],
+    "price": 44.99
+  },
+  {
+    "name": "Real-Time Applications with Node.js and MongoDB",
+    "description": "Build real-time applications using Node.js and MongoDB.",
+    "author": "Mosh Hamedani",
+    "duration": "11 hours",
+    "level": "Advanced",
+    "tags": ["Real-Time Applications", "Node.js", "MongoDB", "Web Development"],
+    "price": 74.99
+  },
+  {
+    "name": "Security Best Practices for Node.js and MongoDB",
+    "description": "Learn security best practices for developing applications with Node.js and MongoDB.",
+    "author": "Mosh Hamedani",
+    "duration": "6 hours",
+    "level": "Advanced",
+    "tags": ["Security", "Node.js", "MongoDB", "Backend Development"],
+    "price": 59.99
+  },
+  {
+    "name": "Performance Optimization for Node.js and MongoDB",
+    "description": "Techniques to optimize the performance of Node.js applications using MongoDB.",
+    "author": "Mosh Hamedani",
+    "duration": "8 hours",
+    "level": "Advanced",
+    "tags": ["Performance Optimization", "Node.js", "MongoDB", "Backend Development"],
+    "price": 69.99
+  }
+]
