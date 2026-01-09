@@ -60,7 +60,7 @@ const courseSchema = new mongoose.Schema({
 const Course = mongoose.model("Course", courseSchema, "courses");
 
 async function getCourses() {
-  // const courses = await Course.find();
+  //   const courses = await Course.find();
   //   const courses = await Course.find().and([({ author: "Mosh" }, { duration: { $in: [8, 10] } })]);
   //   const courses = await Course.find().or([{ author: "Mosh" }, { price: { $in: [10, 15, 20] } }]);
   //   const courses = await Course.find()
