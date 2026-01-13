@@ -47,6 +47,16 @@ async function createPerson() {
 
 // createPerson();
 
+async function createPersonsFromFile() {
+  const fs = require("fs");
+  const personsData = fs.readFileSync("D:\\Python\\Various\\Mosh Node\\Mongo\\data.json", "utf-8");
+  const persons = JSON.parse(personsData);
+  await Person.insertMany(persons);
+  console.log("Persons created successfully from file");
+}
+
+// createPersonsFromFile();
+
 const courseSchema = new mongoose.Schema({
   name: String,
   description: String,
@@ -75,3 +85,25 @@ async function getCourses() {
 }
 
 getCourses();
+
+async function updateCourse(id) {
+  const course = await Course.findById(id);
+  course.set({
+    name: "Updated Course Name",
+    duration: "12 hours",
+  });
+  const result = await course.save();
+  console.log(result);
+}
+
+updateCourse("696678a76f190e291b58a416");
+
+async function createCoursesFromFile() {
+  const fs = require("fs");
+  const coursesData = fs.readFileSync("D:\\Python\\Various\\Mosh Node\\Mongo\\course.json", "utf-8");
+  const courses = JSON.parse(coursesData);
+  await Course.insertMany(courses);
+  console.log("Courses created successfully from file");
+}
+
+// createCoursesFromFile();
