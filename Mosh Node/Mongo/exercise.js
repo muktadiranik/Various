@@ -84,7 +84,7 @@ async function getCourses() {
   console.log(courses);
 }
 
-getCourses();
+// getCourses();
 
 async function updateCourse(id) {
   const course = await Course.findById(id);
@@ -96,7 +96,7 @@ async function updateCourse(id) {
   console.log(result);
 }
 
-updateCourse("696678a76f190e291b58a416");
+// updateCourse("696678a76f190e291b58a416");
 
 async function createCoursesFromFile() {
   const fs = require("fs");
