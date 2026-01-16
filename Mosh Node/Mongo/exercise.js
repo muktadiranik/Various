@@ -98,6 +98,37 @@ async function updateCourse(id) {
 
 // updateCourse("696678a76f190e291b58a416");
 
+async function updateCourseDirectly(id) {
+  const result = await Course.updateOne(
+    { _id: id },
+    {
+      $set: {
+        name: "Directly Updated Course Name",
+        duration: "15 hours",
+      },
+    }
+  );
+  console.log(result);
+}
+
+// updateCourseDirectly("696a5152eaa9f0716bc680ed");
+
+async function updateCourseFindAndUpdate(id) {
+  const course = await Course.findByIdAndUpdate(
+    id,
+    {
+      $set: {
+        name: "Find and Update Course Name",
+        duration: "20 hours",
+      },
+    },
+    { new: true } // to return the updated document
+  );
+  console.log(course);
+}
+
+// updateCourseFindAndUpdate("696a5152eaa9f0716bc680ee");
+
 async function createCoursesFromFile() {
   const fs = require("fs");
   const coursesData = fs.readFileSync("D:\\Python\\Various\\Mosh Node\\Mongo\\course.json", "utf-8");
@@ -107,3 +138,10 @@ async function createCoursesFromFile() {
 }
 
 // createCoursesFromFile();
+
+async function removeCourse(id) {
+  const result = await Course.findByIdAndDelete(id);
+  console.log(result);
+}
+
+// removeCourse("696a5152eaa9f0716bc680ed");
