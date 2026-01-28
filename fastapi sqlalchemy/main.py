@@ -67,11 +67,25 @@ class CategoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CategoryIn(BaseModel):
+    name: str | None
+    description: str | None
+
+
+class CategoryOutForProductOut(BaseModel):
+    id: int | None
+    name: str | None
+    description: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ProductOut(BaseModel):
     id: int | None
     name: str | None
     description: str | None
     category_id: int | None
+    category: CategoryOutForProductOut | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,6 +116,17 @@ async def get_category(category_id: int):
         return CategoryOut.model_validate(category)
 
 
+@app.post("/categories")
+async def create_category(category: CategoryIn):
+    with Session(engine) as session:
+        category = Category(**category.model_dump())
+        session.add(category)
+        session.commit()
+        session.refresh(category)
+
+        return CategoryOut.model_validate(category)
+
+
 @app.get("/products")
 async def get_all_products():
     with Session(engine) as session:
@@ -112,8 +137,12 @@ async def get_all_products():
 @app.get("/products/{product_id}")
 async def get_product(product_id: int):
     with Session(engine) as session:
-        product = session.query(Product).get(product_id)
-        return product
+        product = session.query(
+            Product
+        ).options(
+            selectinload(Product.category)
+        ).filter(Product.id == product_id).first()
+        return ProductOut.model_validate(product)
 
 
 # Run the app
