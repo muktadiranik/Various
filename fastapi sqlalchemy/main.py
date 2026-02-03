@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship, selectinload
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Column, Integer, String, MetaData, Table
 from sqlalchemy import create_engine
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 app = FastAPI()
@@ -90,6 +90,14 @@ class ProductOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProductIn(BaseModel):
+    name: str | None
+    description: str | None
+    category_id: int | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # Define the routes
 
 @app.get("/")
@@ -127,6 +135,23 @@ async def create_category(category: CategoryIn):
         return CategoryOut.model_validate(category)
 
 
+@app.put("/categories/{category_id}")
+async def update_category(category_id: int, category_in: CategoryIn):
+    with Session(engine) as session:
+        category = session.query(Category).get(category_id)
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+
+        update_data = category_in.model_dump()
+
+        for key, value in update_data.items():
+            setattr(category, key, value)
+
+        session.commit()
+
+        return CategoryOut.model_validate(category)
+
+
 @app.get("/products")
 async def get_all_products():
     with Session(engine) as session:
@@ -142,6 +167,34 @@ async def get_product(product_id: int):
         ).options(
             selectinload(Product.category)
         ).filter(Product.id == product_id).first()
+        return ProductOut.model_validate(product)
+
+
+@app.post("/products")
+async def create_product(product: ProductIn):
+    with Session(engine) as session:
+        product = Product(**product.model_dump())
+        session.add(product)
+        session.commit()
+        session.refresh(product)
+
+        return ProductOut.model_validate(product)
+
+
+@app.put("/products/{product_id}")
+async def update_product(product_id: int, product_in: ProductIn):
+    with Session(engine) as session:
+        product = session.query(Product).get(product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        update_data = product_in.model_dump()
+
+        for key, value in update_data.items():
+            setattr(product, key, value)
+
+        session.commit()
+
         return ProductOut.model_validate(product)
 
 
