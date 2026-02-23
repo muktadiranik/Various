@@ -1,0 +1,2 @@
+- [ ] Add HTTPException import to fastapi sqlalchemy/main.py
+- [ ] Update the update_category function: rename parameter, add error handling, update fields, commit, and return

@@ -1,0 +1,9 @@
+{
+  "name": "Node Server",
+  "port": 3000,
+  "mail": {
+    "host": "smtp.mailtrap.io",
+    "port": 2525,
+    "user": "b4d1d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+  }
+}

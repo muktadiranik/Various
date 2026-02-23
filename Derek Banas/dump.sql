@@ -1,0 +1,6 @@
+BEGIN TRANSACTION;
+CREATE TABLE Employees (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, FastName TEXT NOT NULL, LastName TEXT NOT NULL, Age INT NOT NULL, Address TEXT, Salary REAL, HireDate TEXT, 'Image' BLOB DEFAULT NULL);
+INSERT INTO "Employees" VALUES(1,'Derek','Banas',41,'123 Main St','500,000','2026-01-02',NULL);
+DELETE FROM "sqlite_sequence";
+INSERT INTO "sqlite_sequence" VALUES('Employees',1);
+COMMIT;

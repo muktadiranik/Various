@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LangChain Assistant | Dark Mode</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
+  </head>
+  <body>
+    <div id="chat-container">
+      <header>LANGCHAIN AI CORE</header>
+      <div id="messages"></div>
+      <div id="typing-indicator" class="typing" style="display: none"><span style="color: var(--primary-color)">●</span> AI is processing...</div>
+      <form id="input-area" onsubmit="sendMessage(event)">
+        <input type="text" id="messageText" autocomplete="off" placeholder="Ask a question..." />
+        <button>Send</button>
+      </form>
+    </div>
+
+    <script>
+      var ws = new WebSocket("ws://localhost:8000/ws/chat");
+      var typingIndicator = document.getElementById("typing-indicator");
+
+      ws.onmessage = function (event) {
+        typingIndicator.style.display = "none";
+        addMessage(event.data, "ai");
+      };
+
+      function addMessage(text, type) {
+        var messages = document.getElementById("messages");
+        var message = document.createElement("div");
+        message.className = "msg " + type;
+        // Handle 'AI: ' prefix if your backend still sends it
+        message.textContent = text.replace(/^AI: /, "");
+        messages.appendChild(message);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      function sendMessage(event) {
+        var input = document.getElementById("messageText");
+        if (input.value.trim() === "") return;
+
+        addMessage(input.value, "user");
+        ws.send(input.value);
+
+        input.value = "";
+        typingIndicator.style.display = "flex";
+        event.preventDefault();
+      }
+    </script>
+  </body>
+</html>
