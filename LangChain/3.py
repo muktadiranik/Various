@@ -23,7 +23,7 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections.append(websocket)
 
-    def dicsonnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
     async def chat(self, message: str, websocket: WebSocket):
