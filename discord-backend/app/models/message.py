@@ -16,10 +16,10 @@ class Message(Base):
     is_pinned: Mapped[bool] = mapped_column(Boolean, default=False)
     pinned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     
-    # Relationships
+    # Relationships 
     author: Mapped["User"] = relationship(back_populates="messages") # type: ignore
     channel: Mapped["Channel"] = relationship(back_populates="messages") # type: ignore
-    reply_to: Mapped["Message"] = relationship(remote_side=[id], backref="replies")
+    reply_to: Mapped["Message"] = relationship(remote_side="Message.id", backref="replies")  
     reactions: Mapped[list["MessageReaction"]] = relationship(back_populates="message", cascade="all, delete-orphan") # type: ignore
     
     __table_args__ = (

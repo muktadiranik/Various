@@ -1,7 +1,7 @@
 # app/core/permissions.py
 from typing import List, Optional, Tuple
 from dataclasses import dataclass
-from app.core.constants import Permission
+from app.core.constants import Permission, DEFAULT_EVERYONE_PERMISSIONS, DEFAULT_ADMIN_PERMISSIONS
 
 
 @dataclass

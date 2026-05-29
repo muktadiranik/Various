@@ -1,7 +1,7 @@
 # app/core/security.py
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-import jwt
+import jwt  # This should work with PyJWT installed
 from passlib.context import CryptContext
 from app.config import settings
 
@@ -64,6 +64,4 @@ def create_refresh_token(user_id: int) -> str:
 
 async def get_user_permissions(user_id: int, guild_id: Optional[int] = None) -> int:
     """Get user permissions (placeholder - implemented in permission service)"""
-    # This is a placeholder that will be overridden by the permission service
-    # The actual implementation is in app/services/permission_service.py
     return 0

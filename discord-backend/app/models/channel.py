@@ -21,9 +21,9 @@ class Channel(Base):
     bitrate: Mapped[int] = mapped_column(nullable=True)
     user_limit: Mapped[int] = mapped_column(nullable=True)
     
-    # Relationships
+    # Relationships - FIX THIS LINE
     guild: Mapped["Guild"] = relationship(back_populates="channels") # type: ignore
-    parent: Mapped["Channel"] = relationship(remote_side=[id], backref="children")
+    parent: Mapped["Channel"] = relationship(remote_side="Channel.id", backref="children")  
     messages: Mapped[list["Message"]] = relationship(back_populates="channel", cascade="all, delete-orphan") # type: ignore
     permission_overrides: Mapped[list["PermissionOverride"]] = relationship(back_populates="channel", cascade="all, delete-orphan") # type: ignore
     

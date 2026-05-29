@@ -7,13 +7,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Create async engine
+# Get database configuration
+db_config = settings.database_config
+
+# Create async engine with appropriate configuration
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DB_ECHO,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    poolclass=NullPool if settings.DB_POOL_SIZE == 0 else None
+    **db_config
 )
 
 # Create async session factory

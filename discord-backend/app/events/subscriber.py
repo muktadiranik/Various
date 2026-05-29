@@ -3,10 +3,8 @@ import json
 import asyncio
 from typing import Dict, Any, Optional, Set
 from datetime import datetime
-from redis.asyncio import Redis
 from app.core.redis_client import get_redis
 from app.core.websocket_manager import websocket_manager
-from app.services.presence_service import presence_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,7 +14,7 @@ class RedisEventSubscriber:
     """Subscribe to Redis events and broadcast to WebSocket clients"""
 
     def __init__(self):
-        self.redis_client: Optional[Redis] = None
+        self.redis_client = None
         self.pubsub = None
         self.subscribed_channels: Set[str] = set()
         self.running = False
@@ -27,10 +25,14 @@ class RedisEventSubscriber:
         if not self.redis_client:
             self.redis_client = await get_redis()
             self.pubsub = self.redis_client.pubsub()
+            logger.info("Redis pubsub connection established")
 
     async def subscribe(self, channels: list):
         """Subscribe to Redis channels"""
         await self._ensure_connection()
+        
+        if not channels:
+            return
 
         for channel in channels:
             if channel not in self.subscribed_channels:
@@ -74,6 +76,67 @@ class RedisEventSubscriber:
             f"user:{user_id}:notifications"
         ]
         await self.subscribe(channels)
+
+    async def _handle_presence(self, data: Dict[str, Any], timestamp: str):
+        """Handle presence events (lazy import to avoid circular dependency)"""
+        from app.services.presence_service import presence_service
+        
+        guild_id = data.get("guild_id")
+        user_id = data.get("user_id")
+        status = data.get("status")
+
+        if guild_id and user_id:
+            if status == "online":
+                await presence_service.set_user_online(user_id, guild_id, status)
+            else:
+                await presence_service.set_user_offline(user_id, guild_id)
+
+            await websocket_manager.broadcast_to_guild(
+                guild_id,
+                {
+                    "type": "presence_update",
+                    "user_id": user_id,
+                    "status": status,
+                    "guild_id": guild_id,
+                    "timestamp": timestamp
+                }
+            )
+            logger.debug(f"Handled presence update for user {user_id} in guild {guild_id}: {status}")
+
+    async def _handle_typing(self, data: Dict[str, Any], timestamp: str):
+        """Handle typing events (lazy import to avoid circular dependency)"""
+        channel_id = data.get("channel_id")
+        user_id = data.get("user_id")
+        username = data.get("username")
+        action = data.get("action")
+
+        if channel_id and user_id:
+            if action == "start" and self.redis_client:
+                typing_key = f"typing:channel:{channel_id}"
+                typing_data = {
+                    "user_id": user_id,
+                    "username": username,
+                    "channel_id": channel_id,
+                    "started_at": datetime.utcnow().isoformat()
+                }
+                await self.redis_client.hset(typing_key, str(user_id), json.dumps(typing_data))
+                await self.redis_client.expire(typing_key, 10)
+            elif action == "stop" and self.redis_client:
+                typing_key = f"typing:channel:{channel_id}"
+                await self.redis_client.hdel(typing_key, str(user_id))
+
+            await websocket_manager.broadcast_to_channel(
+                channel_id,
+                {
+                    "type": "user_typing",
+                    "user_id": user_id,
+                    "username": username,
+                    "channel_id": channel_id,
+                    "action": action,
+                    "timestamp": timestamp
+                }
+            )
+            logger.debug(f"Handled typing indicator for user {user_id} in channel {channel_id}: {action}")
 
     async def _handle_message(self, channel: str, message_data: Dict[str, Any]):
         """Handle incoming Redis message and broadcast to WebSocket clients"""
@@ -170,67 +233,12 @@ class RedisEventSubscriber:
                     )
                     logger.debug(f"Broadcasted reaction_removed to channel {channel_id}")
 
-            # Presence events
+            # Presence and typing events
             elif event_type == "user_presence":
-                guild_id = data.get("guild_id")
-                user_id = data.get("user_id")
-                status = data.get("status")
-
-                if guild_id and user_id:
-                    # Update local presence cache
-                    if status == "online":
-                        await presence_service.set_user_online(user_id, guild_id, status)
-                    else:
-                        await presence_service.set_user_offline(user_id, guild_id)
-
-                    # Broadcast to local WebSocket connections
-                    await websocket_manager.broadcast_to_guild(
-                        guild_id,
-                        {
-                            "type": "presence_update",
-                            "user_id": user_id,
-                            "status": status,
-                            "guild_id": guild_id,
-                            "timestamp": timestamp
-                        }
-                    )
-                    logger.debug(f"Broadcasted user_presence to guild {guild_id}")
+                await self._handle_presence(data, timestamp)
 
             elif event_type == "typing_indicator":
-                channel_id = data.get("channel_id")
-                user_id = data.get("user_id")
-                username = data.get("username")
-                action = data.get("action")
-
-                if channel_id and user_id:
-                    if action == "start":
-                        # Store in local Redis
-                        typing_key = f"typing:channel:{channel_id}"
-                        typing_data = {
-                            "user_id": user_id,
-                            "username": username,
-                            "channel_id": channel_id,
-                            "started_at": datetime.utcnow().isoformat()
-                        }
-                        await self.redis_client.hset(typing_key, str(user_id), json.dumps(typing_data))
-                        await self.redis_client.expire(typing_key, 10)
-                    else:
-                        typing_key = f"typing:channel:{channel_id}"
-                        await self.redis_client.hdel(typing_key, str(user_id))
-
-                    # Broadcast to local channel
-                    await websocket_manager.broadcast_to_channel(
-                        channel_id,
-                        {
-                            "type": "user_typing",
-                            "user_id": user_id,
-                            "username": username,
-                            "channel_id": channel_id,
-                            "action": action,
-                            "timestamp": timestamp
-                        }
-                    )
-                    logger.debug(f"Broadcasted typing_indicator to channel {channel_id}")
+                await self._handle_typing(data, timestamp)
 
             # Guild member events
             elif event_type == "member_join":
@@ -375,25 +383,40 @@ class RedisEventSubscriber:
 
     async def listen(self):
         """Listen for Redis messages"""
+        await self._ensure_connection()
+        
         if not self.pubsub:
-            await self._ensure_connection()
+            logger.error("Pubsub not initialized")
+            return
 
         self.running = True
         logger.info("Redis subscriber started listening")
 
+        # Subscribe to a dummy channel to initialize the pubsub connection
+        if len(self.subscribed_channels) == 0:
+            try:
+                await self.pubsub.subscribe("__dummy__")
+                logger.debug("Subscribed to dummy channel to initialize connection")
+            except Exception as e:
+                logger.warning(f"Could not subscribe to dummy channel: {e}")
+
         try:
             while self.running:
                 try:
-                    message = await self.pubsub.get_message(
-                        ignore_subscribe_messages=True,
-                        timeout=1.0
+                    # Use get_message with timeout to allow checking running flag
+                    message = await asyncio.wait_for(
+                        self.pubsub.get_message(
+                            ignore_subscribe_messages=True,
+                            timeout=1.0
+                        ),
+                        timeout=2.0
                     )
 
                     if message and message.get('type') == 'message':
                         channel = message.get('channel')
                         data = message.get('data')
 
-                        if channel and data:
+                        if channel and data and channel != "__dummy__":
                             try:
                                 message_data = json.loads(data)
                                 await self._handle_message(channel, message_data)
@@ -402,17 +425,39 @@ class RedisEventSubscriber:
                             except Exception as e:
                                 logger.error(f"Error processing Redis message: {e}")
 
+                except asyncio.TimeoutError:
+                    # Normal timeout, continue
+                    continue
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    logger.error(f"Error in Redis listener: {e}")
+                    if "pubsub connection not set" in str(e):
+                        logger.warning("Pubsub connection lost, reconnecting...")
+                        await self._ensure_connection()
+                        # Re-subscribe to existing channels
+                        if self.subscribed_channels:
+                            for channel in self.subscribed_channels:
+                                await self.pubsub.subscribe(channel)
+                    else:
+                        logger.error(f"Error in Redis listener: {e}")
                     await asyncio.sleep(1)
 
+        except Exception as e:
+            logger.error(f"Fatal error in Redis listener: {e}")
         finally:
+            # Unsubscribe from dummy channel if it exists
+            try:
+                if self.pubsub:
+                    await self.pubsub.unsubscribe("__dummy__")
+            except Exception as e:
+                logger.debug(f"Error unsubscribing from dummy channel: {e}")
             logger.info("Redis subscriber stopped")
 
     async def start(self):
         """Start the Redis subscriber in the background"""
+        # Ensure connection and pubsub are set up
+        await self._ensure_connection()
+        
         if not self._task or self._task.done():
             self._task = asyncio.create_task(self.listen())
             logger.info("Redis subscriber task started")
@@ -428,9 +473,11 @@ class RedisEventSubscriber:
                 pass
 
         if self.pubsub:
-            await self.pubsub.close()
-
-        logger.info("Redis subscriber stopped")
+            try:
+                await self.pubsub.close()
+                logger.info("Redis pubsub closed")
+            except Exception as e:
+                logger.debug(f"Error closing pubsub: {e}")
 
 
 # Global subscriber instance

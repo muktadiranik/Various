@@ -1,6 +1,6 @@
 # app/config.py
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 import os
 
 class Settings(BaseSettings):
@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
+    DB_POOL_PRE_PING: bool = True
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -38,6 +39,23 @@ class Settings(BaseSettings):
     # File Upload
     MAX_FILE_SIZE_MB: int = 25
     ALLOWED_FILE_TYPES: List[str] = ["image/jpeg", "image/png", "image/gif", "video/mp4"]
+    
+    @property
+    def database_config(self) -> dict:
+        """Get database engine configuration based on URL"""
+        config = {
+            "echo": self.DB_ECHO,
+        }
+        
+        # Only add pooling parameters for non-SQLite databases
+        if not self.DATABASE_URL.startswith("sqlite"):
+            config.update({
+                "pool_size": self.DB_POOL_SIZE,
+                "max_overflow": self.DB_MAX_OVERFLOW,
+                "pool_pre_ping": self.DB_POOL_PRE_PING,
+            })
+        
+        return config
     
     class Config:
         env_file = ".env"
