@@ -1,12 +1,20 @@
 # app/events/publisher.py
 import json
 from typing import Any, Dict, Optional
+from datetime import datetime
 from redis.asyncio import Redis
 from app.core.redis_client import get_redis
-from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle datetime objects"""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class RedisEventPublisher:
@@ -19,6 +27,7 @@ class RedisEventPublisher:
         """Ensure Redis connection is established"""
         if not self.redis_client:
             self.redis_client = await get_redis()
+            logger.info("Redis publisher client connected")
 
     async def publish(self, channel: str, event_type: str, data: Dict[str, Any]) -> int:
         """Publish an event to Redis channel"""
@@ -31,7 +40,10 @@ class RedisEventPublisher:
         }
 
         try:
-            subscribers = await self.redis_client.publish(channel, json.dumps(message))
+            subscribers = await self.redis_client.publish(
+                channel, 
+                json.dumps(message, cls=DateTimeEncoder)
+            )
             logger.debug(f"Published to {channel}: {event_type}, subscribers: {subscribers}")
             return subscribers
         except Exception as e:

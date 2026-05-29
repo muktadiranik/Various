@@ -5,10 +5,12 @@ from sqlalchemy import select
 from app.repositories.member_repo import MemberRepository
 from app.repositories.role_repo import RoleRepository
 from app.repositories.channel_repo import ChannelRepository
-from app.core.permissions import PermissionCalculator, RoleData, PermissionOverrideData
+from app.repositories.guild_repo import GuildRepository
+from app.core.permissions import PermissionCalculator, RoleData, PermissionOverrideData, Permission
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class PermissionService:
     def __init__(
@@ -25,18 +27,23 @@ class PermissionService:
     
     async def get_user_guild_permissions(self, user_id: int, guild_id: int) -> int:
         """Get user's effective permissions in a guild"""
-        # Check if user is owner
-        from app.repositories.guild_repo import GuildRepository
-        guild_repo = GuildRepository(self.session)
-        guild = await guild_repo.get(guild_id)
+        from app.models.guild import Guild
         
+        # Get guild directly using session
+        result = await self.session.execute(
+            select(Guild).where(Guild.id == guild_id)
+        )
+        guild = result.scalar_one_or_none()
+        
+        # Check if user is owner
         if guild and guild.owner_id == user_id:
-            from app.core.permissions import Permission
+            logger.info(f"User {user_id} is owner of guild {guild_id}, granting ADMINISTRATOR")
             return Permission.ADMINISTRATOR
         
         # Get user's roles in guild
         member = await self.member_repo.get_member(guild_id, user_id)
         if not member:
+            logger.warning(f"User {user_id} is not a member of guild {guild_id}")
             return 0
         
         roles = []
@@ -48,15 +55,20 @@ class PermissionService:
                 position=role.position
             ))
         
-        return PermissionCalculator.calculate_role_permissions(roles)
+        permissions = PermissionCalculator.calculate_role_permissions(roles)
+        logger.debug(f"User {user_id} permissions in guild {guild_id}: {permissions}")
+        return permissions
     
     async def get_user_channel_permissions(self, user_id: int, channel_id: int) -> int:
         """Get user's effective permissions in a channel"""
-        from app.repositories.guild_repo import GuildRepository
-        from app.repositories.channel_repo import ChannelRepository
+        from app.models.channel import Channel
+        from app.models.guild import Guild
         
-        channel_repo = ChannelRepository(self.session)
-        channel = await channel_repo.get(channel_id)
+        # Get channel
+        result = await self.session.execute(
+            select(Channel).where(Channel.id == channel_id)
+        )
+        channel = result.scalar_one_or_none()
         
         if not channel:
             return 0
@@ -65,7 +77,6 @@ class PermissionService:
         guild_permissions = await self.get_user_guild_permissions(user_id, channel.guild_id)
         
         # Check administrator
-        from app.core.permissions import Permission
         if guild_permissions & Permission.ADMINISTRATOR:
             return Permission.all_permissions()
         
