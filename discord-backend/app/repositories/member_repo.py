@@ -5,8 +5,8 @@ from sqlalchemy.orm import selectinload, joinedload
 from app.models.member import GuildMember, member_roles
 from app.models.user import User
 from app.models.role import Role
-from app.models.guild import Guild
 from app.repositories.base import BaseRepository
+
 
 class MemberRepository(BaseRepository[GuildMember]):
     def __init__(self, session):
@@ -43,6 +43,8 @@ class MemberRepository(BaseRepository[GuildMember]):
     
     async def get_member_with_permissions(self, guild_id: int, user_id: int) -> Optional[GuildMember]:
         """Get member with roles for permission calculation"""
+        from app.models.guild import Guild
+        
         result = await self.session.execute(
             select(GuildMember)
             .where(
@@ -142,6 +144,10 @@ class MemberRepository(BaseRepository[GuildMember]):
             )
         )
         return result.scalars().all()
+    
+    async def get_user_guilds(self, user_id: int) -> List[GuildMember]:
+        """Get all guild memberships for a user (alias for get_user_guild_memberships)"""
+        return await self.get_user_guild_memberships(user_id)
     
     async def is_member(self, guild_id: int, user_id: int) -> bool:
         """Check if a user is a member of a guild"""
