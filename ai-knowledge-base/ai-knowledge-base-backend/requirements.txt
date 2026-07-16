@@ -1,0 +1,42 @@
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Configuration & Environment
+python-dotenv==1.0.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.23
+aiosqlite==0.19.0
+
+# LangChain & AI
+langchain==0.0.340
+langchain-community==0.0.11
+sentence-transformers==2.2.2
+
+# Vector Store
+faiss-cpu==1.7.4
+
+# Utilities
+uuid==1.30
+
+# File Processing
+python-multipart==0.0.6
+python-docx==1.1.0
+PyPDF2==3.0.1
+markdown==3.5.1
+chardet==5.2.0
+
+# LLM & RAG - Ollama
+langchain-community==0.0.11
+langchain-ollama==0.1.0  # For Ollama support
+
+# Streaming & Async
+sse-starlette==1.6.5
+httpx==0.25.2
+
+# Optional: For better performance
+tiktoken==0.5.2
