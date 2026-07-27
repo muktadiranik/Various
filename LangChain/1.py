@@ -85,6 +85,7 @@ templates = Jinja2Templates(directory="templates")
 async def index(request: Request):
     # Serve HTML file for the chat interface
     return templates.TemplateResponse(
+        request=request,
         name="index.html",
         context={"request": request}
     )
