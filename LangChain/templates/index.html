@@ -18,7 +18,7 @@
     </div>
 
     <script>
-      var ws = new WebSocket("ws://localhost:8000/ws/chat");
+      var ws = new WebSocket("wss://excusable-fiscally-confiding.ngrok-free.dev/ws/chat");
       var typingIndicator = document.getElementById("typing-indicator");
 
       ws.onmessage = function (event) {

@@ -85,6 +85,7 @@ templates = Jinja2Templates(directory="templates")
 async def index(request: Request):
     # Serve HTML file for the chat interface
     return templates.TemplateResponse(
+        request=request,
         name="index.html",
         context={"request": request}
     )
@@ -130,4 +131,4 @@ async def root():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
