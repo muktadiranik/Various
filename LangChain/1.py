@@ -1,32 +1,51 @@
-import uvicorn
-from fastapi.templating import Jinja2Templates
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.staticfiles import StaticFiles
-from typing import List
+# Hugging Face imports
+from huggingface_hub import login
 
 # Langchain imports
-from langchain_community.document_loaders import WebBaseLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
-from langchain_ollama.chat_models import ChatOllama
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_ollama.chat_models import ChatOllama
+from langchain_community.vectorstores import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import WebBaseLoader
+from typing import List
+
+# FastAPI imports
+from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.templating import Jinja2Templates
+import uvicorn
+import os
+
+# Dotenv imports
+from dotenv import load_dotenv
+load_dotenv()
 
 
+# Login to the Hugging Face API
+login(token=os.getenv("HF_TOKEN"))
+
+# Load the documents from the web
 loader = WebBaseLoader("https://www.thedailystar.net/")
 documents = loader.load()
 
+# Split the documents into chunks
 splitters = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 splits = splitters.split_documents(documents)
 
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2")
+# Create the embeddings
+embeddings = HuggingFaceEmbeddings(model_name=os.getenv("HF_MODEL_NAME"))
+
+# Create the vector store
 vectorstore = Chroma.from_documents(splits, embeddings)
+
+# Create the retriever
 retriever = vectorstore.as_retriever()
 
 
+# Format the documents
 def format_documents(documents) -> str:
     return "\n\n".join([document.page_content for document in documents])
 
@@ -41,6 +60,7 @@ prompt = ChatPromptTemplate.from_messages([
 ])
 
 
+# Create the RAG chain
 rag_chain = (
     {
         "context": lambda x: format_documents(retriever.invoke(x["question"])),
@@ -52,6 +72,7 @@ rag_chain = (
     | StrOutputParser()
 )
 
+# Create the chat history
 chat_history = []
 
 
