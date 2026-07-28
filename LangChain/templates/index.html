@@ -4,22 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LangChain Assistant | Dark Mode</title>
+
+    <!-- Markdown -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+
+    <!-- HTML Sanitizer -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
+
     <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
   </head>
+
   <body>
     <div id="chat-container">
       <header>LANGCHAIN AI CORE</header>
+
       <div id="messages"></div>
-      <div id="typing-indicator" class="typing" style="display: none"><span style="color: var(--primary-color)">●</span> AI is processing...</div>
+
+      <div id="typing-indicator" class="typing" style="display: none">
+        <span style="color: var(--primary-color)">●</span>
+        AI is processing...
+      </div>
+
       <form id="input-area" onsubmit="sendMessage(event)">
         <input type="text" id="messageText" autocomplete="off" placeholder="Ask a question..." />
-        <button>Send</button>
+
+        <button type="submit">Send</button>
       </form>
     </div>
 
     <script>
-      var ws = new WebSocket("wss://excusable-fiscally-confiding.ngrok-free.dev/ws/chat");
-      var typingIndicator = document.getElementById("typing-indicator");
+      const ws = new WebSocket("wss://excusable-fiscally-confiding.ngrok-free.dev/ws/chat");
+
+      const typingIndicator = document.getElementById("typing-indicator");
+
+      marked.setOptions({
+        breaks: true,
+        gfm: true,
+      });
 
       ws.onmessage = function (event) {
         typingIndicator.style.display = "none";
@@ -27,25 +48,45 @@
       };
 
       function addMessage(text, type) {
-        var messages = document.getElementById("messages");
-        var message = document.createElement("div");
+        const messages = document.getElementById("messages");
+
+        const message = document.createElement("div");
         message.className = "msg " + type;
-        // Handle 'AI: ' prefix if your backend still sends it
-        message.textContent = text.replace(/^AI: /, "");
+
+        if (type === "ai") {
+          let formatted = text.replace(/^AI:\s*/, "").trim();
+
+          // Convert "1. Item 2. Item" into multiline markdown
+          formatted = formatted.replace(/(\d+\.)\s+/g, "\n$1 ");
+
+          // Add spacing before bullets
+          formatted = formatted.replace(/\s*([-*])\s+/g, "\n$1 ");
+
+          const html = marked.parse(formatted);
+
+          message.innerHTML = DOMPurify.sanitize(html);
+        } else {
+          message.textContent = text;
+        }
+
         messages.appendChild(message);
         messages.scrollTop = messages.scrollHeight;
       }
 
       function sendMessage(event) {
-        var input = document.getElementById("messageText");
+        event.preventDefault();
+
+        const input = document.getElementById("messageText");
+
         if (input.value.trim() === "") return;
 
         addMessage(input.value, "user");
+
         ws.send(input.value);
 
         input.value = "";
+
         typingIndicator.style.display = "flex";
-        event.preventDefault();
       }
     </script>
   </body>
