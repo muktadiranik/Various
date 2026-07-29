@@ -51,6 +51,8 @@ from langchain_tavily import TavilySearch
 
 import wikipedia
 
+MAX_CHAT_HISTORY = 10
+
 load_dotenv()
 
 app = FastAPI(
@@ -91,32 +93,39 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-MAX_CHAT_HISTORY = 10
-
-wikipedia.set_lang("en")
 
 wikipedia.set_user_agent("WikipediaChatbot/1.0 (contact@example.com)")
-
-wiki_api = WikipediaAPIWrapper(
-    top_k_results=3,
-    doc_content_chars_max=3000,
-)
-
-wiki_runner = WikipediaQueryRun(
-    api_wrapper=wiki_api,
-)
 
 
 @tool
 def wikipedia_search(query: str) -> str:
     """
     Search Wikipedia for general knowledge, historical events,
-    biographies, countries, cities, science,
-    technology, and encyclopedia information.
+    biographies, places, science, and technology.
     """
 
     try:
-        return wiki_runner.run(query)
+        page = wikipedia.page(query, auto_suggest=True)
+
+        return f"""
+                Title:
+                {page.title}
+
+                Summary:
+                {page.summary}
+
+                URL:
+                {page.url}
+                """
+
+    except wikipedia.DisambiguationError as e:
+        return (
+            "Multiple matching pages found:\n\n"
+            + "\n".join(e.options[:10])
+        )
+
+    except wikipedia.PageError:
+        return "No Wikipedia page found."
 
     except Exception as e:
         return f"Wikipedia search failed: {e}"
@@ -164,20 +173,24 @@ pubmed_runner = PubmedQueryRun()
 @tool
 def pubmed_search(query: str) -> str:
     """
-    Search biomedical and medical literature from PubMed.
+    Search biomedical literature from PubMed.
 
-    Use for:
-
-    - Diseases
-    - Medicine
-    - Drugs
-    - Biology
-    - Healthcare
-    - Clinical research
+    Use for medicine,
+    diseases,
+    healthcare,
+    biology,
+    pharmacology,
+    genetics,
+    and clinical research.
     """
 
     try:
-        return pubmed_runner.run(query)
+        result = pubmed_runner.run(query)
+
+        if not result.strip():
+            return "No PubMed results found."
+
+        return result
 
     except Exception as e:
         return f"PubMed search failed: {e}"
@@ -205,34 +218,6 @@ def duckduckgo_search(query: str) -> str:
     except Exception as e:
         return f"DuckDuckGo search failed: {e}"
 
-
-wolfram_tool = None
-
-if os.getenv("WOLFRAM_ALPHA_APPID"):
-
-    wolfram_runner = WolframAlphaQueryRun(
-        api_wrapper=WolframAlphaAPIWrapper()
-    )
-
-    @tool
-    def wolfram_alpha(query: str) -> str:
-        """
-        Solve mathematical,
-        scientific,
-        engineering,
-        unit conversion,
-        geography,
-        chemistry,
-        and computational questions.
-        """
-
-        try:
-            return wolfram_runner.run(query)
-
-        except Exception as e:
-            return f"WolframAlpha failed: {e}"
-
-    wolfram_tool = wolfram_alpha
 
 tavily_tool = None
 
@@ -271,9 +256,6 @@ tools = [
     pubmed_search,
     duckduckgo_search,
 ]
-
-if wolfram_tool:
-    tools.append(wolfram_tool)
 
 if tavily_tool:
     tools.append(tavily_tool)
