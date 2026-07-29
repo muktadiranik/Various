@@ -8,6 +8,9 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+# ArXiv
+import arxiv
+
 # LangChain
 from langchain_classic.agents import (
     AgentExecutor,
@@ -119,33 +122,37 @@ def wikipedia_search(query: str) -> str:
         return f"Wikipedia search failed: {e}"
 
 
-arxiv_api = ArxivAPIWrapper(
-    top_k_results=3,
-    load_max_docs=3,
-    doc_content_chars_max=3000,
-)
-
-arxiv_runner = ArxivQueryRun(
-    api_wrapper=arxiv_api,
-)
-
-
 @tool
 def arxiv_search(query: str) -> str:
-    """
-    Search academic papers from arXiv.
-
-    Use this tool for:
-
-    - AI
-    - Machine Learning
-    - Computer Science
-    - Mathematics
-    - Physics
-    """
+    """Search arXiv for academic papers."""
 
     try:
-        return arxiv_runner.run(query)
+        client = arxiv.Client()
+
+        search = arxiv.Search(
+            query=query,
+            max_results=3,
+            sort_by=arxiv.SortCriterion.Relevance,
+        )
+
+        papers = []
+
+        for paper in client.results(search):
+            papers.append(
+                f"""
+                Title: {paper.title}
+                Authors: {', '.join(a.name for a in paper.authors)}
+                Published: {paper.published.date()}
+                Summary:
+                {paper.summary}
+                URL: {paper.entry_id}
+                """
+            )
+
+        if not papers:
+            return "No papers found."
+
+        return "\n\n" + "=" * 80 + "\n\n".join(papers)
 
     except Exception as e:
         return f"ArXiv search failed: {e}"
