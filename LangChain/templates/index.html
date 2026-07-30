@@ -33,7 +33,6 @@
     </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
 
     <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
@@ -56,7 +55,7 @@
           <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
       </div>
-      <span>Code copied to clipboard!</span>
+      <span>Copied to clipboard</span>
     </div>
 
     <header class="h-14 bg-[#131314] border-b border-[#282a2c]/60 sticky top-0 z-20 flex items-center px-4 sm:px-6 w-full shrink-0 justify-between">
@@ -140,7 +139,7 @@
       const sendBtn = document.getElementById("sendBtn");
       let toastTimeout = null;
 
-      // Custom Code Block Renderer with Language Label and Copy Button
+      // Custom Code Block Renderer
       const renderer = new marked.Renderer();
       renderer.code = function (code, language) {
         const lang = language || "code";
@@ -206,7 +205,6 @@
       function showToast() {
         const toast = document.getElementById("toast-notification");
 
-        // Reset animation if triggered multiple times quickly
         toast.classList.remove("opacity-0", "translate-y-[-20px]", "pointer-events-none");
         toast.classList.add("opacity-100", "translate-y-0");
 
@@ -222,26 +220,49 @@
         const codeBlock = button.closest(".code-block-wrapper").querySelector("code");
         const codeText = codeBlock.innerText;
 
-        navigator.clipboard
-          .writeText(codeText)
-          .then(() => {
-            // Update button UI temporarily
-            const label = button.querySelector("span");
-            const originalText = label.innerText;
-            label.innerText = "Copied!";
-            button.classList.add("text-emerald-400");
+        const updateBtnUI = () => {
+          const label = button.querySelector("span");
+          const originalText = label.innerText;
+          label.innerText = "Copied!";
+          button.classList.add("text-emerald-400");
 
-            // Trigger Pop-up Toast
-            showToast();
+          showToast();
 
-            setTimeout(() => {
-              label.innerText = originalText;
-              button.classList.remove("text-emerald-400");
-            }, 2000);
-          })
-          .catch((err) => {
-            console.error("Failed to copy text: ", err);
-          });
+          setTimeout(() => {
+            label.innerText = originalText;
+            button.classList.remove("text-emerald-400");
+          }, 2000);
+        };
+
+        // Modern Clipboard API with execCommand Fallback
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard
+            .writeText(codeText)
+            .then(updateBtnUI)
+            .catch(() => fallbackCopyText(codeText, updateBtnUI));
+        } else {
+          fallbackCopyText(codeText, updateBtnUI);
+        }
+      }
+
+      function fallbackCopyText(text, onSuccess) {
+        const tempTextArea = document.createElement("textarea");
+        tempTextArea.value = text;
+        tempTextArea.style.position = "fixed";
+        tempTextArea.style.left = "-9999px";
+        tempTextArea.style.top = "-9999px";
+        document.body.appendChild(tempTextArea);
+        tempTextArea.focus();
+        tempTextArea.select();
+
+        try {
+          const successful = document.execCommand("copy");
+          if (successful && onSuccess) onSuccess();
+        } catch (err) {
+          console.error("Fallback copy failed: ", err);
+        } finally {
+          document.body.removeChild(tempTextArea);
+        }
       }
 
       function addMessage(text, type) {
