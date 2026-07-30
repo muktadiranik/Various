@@ -1,31 +1,32 @@
 <!doctype html>
-<html lang="en" class="h-full bg-zinc-950">
+<html lang="en" class="h-full bg-[#131314]">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LangChain AI Core</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)" />
+    <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin />
+    <link
+      href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)"
+      rel="stylesheet" />
 
-    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="[https://cdn.tailwindcss.com?plugins=typography](https://cdn.tailwindcss.com?plugins=typography)"></script>
     <script>
       tailwind.config = {
-        darkMode: 'class',
+        darkMode: "class",
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Inter', 'sans-serif'],
+              sans: ["Inter", "sans-serif"],
             },
             colors: {
-              user: {
-                bg: '#2563eb',
-                hover: '#1d4ed8',
-              },
-              ai: {
-                bg: '#18181b',
-                border: '#27272a',
+              gemini: {
+                bg: "#131314",
+                surface: "#1e1e1f",
+                border: "#282a2c",
+                userBubble: "#282a2c",
+                accent: "#a8c7fa",
               },
             },
           },
@@ -33,78 +34,76 @@
       };
     </script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+    <script src="[https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js](https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js)"></script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
+    <script src="[https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js](https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js)"></script>
 
     <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
   </head>
 
-  <body class="h-screen w-screen flex flex-col bg-zinc-950 text-zinc-100 font-sans antialiased overflow-hidden">
-    <header class="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur sticky top-0 z-20 flex items-center px-4 sm:px-6 w-full shrink-0">
-      <div class="max-w-3xl w-full mx-auto flex items-center gap-3">
-        <div class="h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 8V4H8"></path>
-            <rect width="16" height="12" x="4" y="8" rx="2"></rect>
-            <path d="M2 14h2"></path>
-            <path d="M20 14h2"></path>
-            <path d="M15 13v2"></path>
-            <path d="M9 13v2"></path>
+  <body class="h-screen w-screen flex flex-col bg-[#131314] text-[#e3e2e6] font-sans antialiased overflow-hidden">
+    <header class="h-14 bg-[#131314] border-b border-[#282a2c]/60 sticky top-0 z-20 flex items-center px-4 sm:px-6 w-full shrink-0 justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="h-8 w-8 rounded-full flex items-center justify-center text-blue-400">
+          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">
+            <path d="M12 0C12 6.62742 6.62742 12 0 12C6.62742 12 12 17.3726 12 24C12 17.3726 17.3726 12 24 12C17.3726 12 12 6.62742 12 0Z" fill="url(#gemini_grad)" />
+            <defs>
+              <linearGradient id="gemini_grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#7cacf8" />
+                <stop offset="0.5" stop-color="#9b72cb" />
+                <stop offset="1" stop-color="#d96570" />
+              </linearGradient>
+            </defs>
           </svg>
         </div>
 
-        <span class="font-semibold text-sm tracking-wide text-zinc-100">
-          LANGCHAIN AI CORE
-        </span>
+        <span class="font-medium text-base text-[#e3e2e6] tracking-tight"> LangChain AI </span>
       </div>
     </header>
 
     <main class="flex-1 flex flex-col w-full h-[calc(100vh-3.5rem)] overflow-hidden relative">
-      <div id="messages" class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 custom-scrollbar w-full max-w-3xl mx-auto space-y-6" role="log" aria-live="polite">
-        </div>
+      <div id="messages" class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 custom-scrollbar w-full max-w-3xl mx-auto space-y-8" role="log" aria-live="polite"></div>
 
-      <div id="typing-indicator" class="hidden px-4 sm:px-6 mb-2 w-full max-w-3xl mx-auto">
+      <div id="typing-indicator" class="hidden px-4 sm:px-6 mb-3 w-full max-w-3xl mx-auto">
         <div class="flex items-center gap-3 text-zinc-400 text-sm">
-          <div class="h-8 w-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-blue-400 shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 8V4H8"></path>
-              <rect width="16" height="12" x="4" y="8" rx="2"></rect>
-              <path d="M2 14h2"></path>
-              <path d="M20 14h2"></path>
-              <path d="M15 13v2"></path>
-              <path d="M9 13v2"></path>
+          <div class="h-7 w-7 rounded-full flex items-center justify-center text-blue-400 shrink-0">
+            <svg class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
             </svg>
           </div>
-
-          <div class="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 px-4 py-3 rounded-2xl">
-            <span class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 0ms"></span>
-            <span class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 150ms"></span>
-            <span class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 300ms"></span>
-          </div>
+          <span class="text-zinc-400 text-sm font-medium">Gemini is thinking...</span>
         </div>
       </div>
 
-      <div class="p-4 sm:p-6 bg-zinc-950/90 backdrop-blur border-t border-zinc-800/80 w-full shrink-0">
-        <form id="input-area" class="max-w-3xl mx-auto relative flex items-end bg-zinc-900/90 rounded-2xl border border-zinc-800 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600 transition-all p-2.5 w-full" onsubmit="sendMessage(event)">
+      <div class="p-4 sm:pb-6 bg-transparent w-full shrink-0">
+        <form
+          id="input-area"
+          class="max-w-3xl mx-auto relative flex items-end bg-[#1e1e1f] border border-[#282a2c] rounded-3xl p-2.5 px-4 focus-within:border-zinc-500 shadow-xl transition-all w-full gap-2"
+          onsubmit="sendMessage(event)">
           <textarea
             id="messageText"
             rows="1"
-            class="flex-1 bg-transparent text-zinc-100 placeholder-zinc-500 resize-none px-3 py-2 focus:outline-none max-h-40 text-sm sm:text-base leading-relaxed custom-scrollbar"
-            placeholder="Ask a question..."
+            class="flex-1 bg-transparent text-[#e3e2e6] placeholder-[#8e9196] resize-none px-2 py-2 focus:outline-none max-h-40 text-sm sm:text-base leading-relaxed custom-scrollbar"
+            placeholder="Ask LangChain AI..."
             autocomplete="off"
-            aria-label="Message prompt"
-          ></textarea>
+            aria-label="Message prompt"></textarea>
 
           <button
             type="submit"
             id="sendBtn"
-            class="h-10 w-10 rounded-xl bg-user-bg hover:bg-user-hover text-white flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 disabled:hover:bg-user-bg"
-            aria-label="Send Message"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.5.5 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path>
-              <path d="m21.854 2.147-10.94 10.939"></path>
+            class="h-10 w-10 rounded-full bg-[#e3e2e6] hover:bg-white text-[#131314] flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
+            aria-label="Send Message">
+            <svg
+              xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)"
+              class="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M12 19V5M5 12l7-7 7 7" />
             </svg>
           </button>
         </form>
@@ -117,7 +116,27 @@
       const textarea = document.getElementById("messageText");
       const sendBtn = document.getElementById("sendBtn");
 
+      // Custom Gemini Code Block Renderer with Language Label and Copy Button
+      const renderer = new marked.Renderer();
+      renderer.code = function (code, language) {
+        const lang = language || "code";
+        const escapedCode = code.replace(/"/g, "&quot;");
+        return `
+          <div class="code-block-wrapper my-4 rounded-xl overflow-hidden border border-[#282a2c] bg-[#0e0e0e]">
+            <div class="code-block-header flex items-center justify-between px-4 py-2 bg-[#1e1e1f] text-xs text-zinc-400 font-mono border-b border-[#282a2c]">
+              <span>${lang}</span>
+              <button onclick="copyCode(this)" class="hover:text-white transition-colors flex items-center gap-1">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                Copy
+              </button>
+            </div>
+            <pre class="p-4 overflow-x-auto text-sm text-[#e3e2e6] font-mono leading-relaxed"><code>${code}</code></pre>
+          </div>
+        `;
+      };
+
       marked.setOptions({
+        renderer: renderer,
         breaks: true,
         gfm: true,
       });
@@ -143,7 +162,6 @@
       ws.onerror = function () {
         setLoadingState(false);
       };
-
       ws.onclose = function () {
         setLoadingState(false);
       };
@@ -162,36 +180,49 @@
         scrollToBottom();
       }
 
+      function copyCode(button) {
+        const code = button.closest(".code-block-wrapper").querySelector("code").innerText;
+        navigator.clipboard.writeText(code).then(() => {
+          button.innerHTML = `Copied!`;
+          setTimeout(() => {
+            button.innerHTML = `
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+              Copy
+            `;
+          }, 2000);
+        });
+      }
+
       function addMessage(text, type) {
         const messages = document.getElementById("messages");
         const isUser = type === "user";
 
         const messageRow = document.createElement("div");
-        messageRow.className = `flex gap-3.5 text-sm sm:text-base animate-message-slide w-full ${
-          isUser ? "justify-end" : "justify-start"
-        }`;
+        messageRow.className = `flex gap-4 text-sm sm:text-base animate-message-slide w-full ${isUser ? "justify-end" : "justify-start"}`;
 
         if (isUser) {
           const bubble = document.createElement("div");
-          bubble.className = "max-w-[85%] bg-user-bg text-white px-4 py-3 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words";
+          bubble.className = "max-w-[85%] bg-[#282a2c] text-[#e3e2e6] px-5 py-3.5 rounded-3xl rounded-tr-md whitespace-pre-wrap break-words leading-relaxed";
           bubble.textContent = text;
           messageRow.appendChild(bubble);
         } else {
           const avatar = document.createElement("div");
-          avatar.className = "h-8 w-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-blue-400 shrink-0 mt-0.5";
+          avatar.className = "h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-1";
           avatar.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 8V4H8"></path>
-              <rect width="16" height="12" x="4" y="8" rx="2"></rect>
-              <path d="M2 14h2"></path>
-              <path d="M20 14h2"></path>
-              <path d="M15 13v2"></path>
-              <path d="M9 13v2"></path>
+            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">
+              <path d="M12 0C12 6.62742 6.62742 12 0 12C6.62742 12 12 17.3726 12 24C12 17.3726 17.3726 12 24 12C17.3726 12 12 6.62742 12 0Z" fill="url(#gemini_grad_msg)"/>
+              <defs>
+                <linearGradient id="gemini_grad_msg" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#7cacf8"/>
+                  <stop offset="0.5" stop-color="#9b72cb"/>
+                  <stop offset="1" stop-color="#d96570"/>
+                </linearGradient>
+              </defs>
             </svg>
           `;
 
           const bubble = document.createElement("div");
-          bubble.className = "flex-1 max-w-[calc(100%-2.75rem)] bg-zinc-900/90 border border-zinc-800 text-zinc-100 px-5 py-4 rounded-2xl rounded-tl-sm shadow-sm markdown-body overflow-hidden break-words";
+          bubble.className = "flex-1 max-w-[calc(100%-2.5rem)] text-[#e3e2e6] markdown-body break-words";
 
           let formatted = text.replace(/^AI:\s*/, "").trim();
           bubble.innerHTML = DOMPurify.sanitize(marked.parse(formatted));
