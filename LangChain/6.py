@@ -12,44 +12,19 @@ from fastapi.templating import Jinja2Templates
 import arxiv
 
 # LangChain
-from langchain_classic.agents import (
-    AgentExecutor,
-    create_tool_calling_agent,
-)
-from langchain_core.messages import (
-    AIMessage,
-    HumanMessage,
-)
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    MessagesPlaceholder,
-)
+from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
-
 from langchain_ollama import ChatOllama
 from langchain_groq import ChatGroq
-
-# Community Tools
-from langchain_community.tools import (
-    ArxivQueryRun,
-    DuckDuckGoSearchRun,
-    PubmedQueryRun,
-    WikipediaQueryRun,
-)
-
-from langchain_community.tools.wolfram_alpha import (
-    WolframAlphaQueryRun,
-)
-
-from langchain_community.utilities import (
-    WikipediaAPIWrapper,
-    ArxivAPIWrapper,
-    WolframAlphaAPIWrapper,
-)
-
+from langchain_community.tools import DuckDuckGoSearchRun, PubmedQueryRun
 from langchain_tavily import TavilySearch
 
+# Wikipedia
 import wikipedia
+
+wikipedia.set_user_agent("WikipediaChatbot/1.0 (contact@example.com)")
 
 MAX_CHAT_HISTORY = 10
 
@@ -94,16 +69,12 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-wikipedia.set_user_agent("WikipediaChatbot/1.0 (contact@example.com)")
-
-
 @tool
 def wikipedia_search(query: str) -> str:
     """
     Search Wikipedia for general knowledge, historical events,
     biographies, places, science, and technology.
     """
-
     try:
         page = wikipedia.page(query, auto_suggest=True)
 
@@ -134,7 +105,6 @@ def wikipedia_search(query: str) -> str:
 @tool
 def arxiv_search(query: str) -> str:
     """Search arXiv for academic papers."""
-
     try:
         client = arxiv.Client()
 
@@ -183,7 +153,6 @@ def pubmed_search(query: str) -> str:
     genetics,
     and clinical research.
     """
-
     try:
         result = pubmed_runner.run(query)
 
@@ -211,7 +180,6 @@ def duckduckgo_search(query: str) -> str:
     - programming
     - quick factual searches
     """
-
     try:
         return duckduckgo_runner.run(query)
 
@@ -222,7 +190,6 @@ def duckduckgo_search(query: str) -> str:
 tavily_tool = None
 
 if os.getenv("TAVILY_API_KEY"):
-
     tavily_runner = TavilySearch(
         max_results=5,
         search_depth="advanced",
@@ -241,7 +208,6 @@ if os.getenv("TAVILY_API_KEY"):
         - long-form information
         - real-time web pages
         """
-
         try:
             return tavily_runner.run(query)
 

@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LangChain Assistant | Dark Mode</title>
+
+    <title>LangChain Assistant</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" />
 
     <!-- Markdown -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
@@ -14,22 +18,37 @@
     <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
   </head>
 
-  <body>
-    <div id="chat-container">
-      <header>LANGCHAIN AI CORE</header>
+  <body class="vh-100 overflow-hidden">
+    <div class="container-fluid h-100 p-0">
+      <div id="chat-container" class="d-flex flex-column h-100">
+        <!-- Header -->
 
-      <div id="messages"></div>
+        <header class="navbar navbar-dark bg-dark px-4 py-3 shadow">
+          <span class="navbar-brand mb-0 h4"> LANGCHAIN AI CORE </span>
+        </header>
 
-      <div id="typing-indicator" class="typing" style="display: none">
-        <span style="color: var(--primary-color)">●</span>
-        AI is processing...
+        <!-- Messages -->
+
+        <div id="messages" class="flex-grow-1 overflow-auto p-3"></div>
+
+        <!-- Typing Indicator -->
+
+        <div id="typing-indicator" class="px-3 py-2 text-secondary" style="display: none">
+          <span class="text-primary me-2">●</span>
+
+          AI is processing...
+        </div>
+
+        <!-- Input -->
+
+        <form id="input-area" class="border-top bg-body p-3" onsubmit="sendMessage(event)">
+          <div class="input-group">
+            <input id="messageText" type="text" class="form-control" placeholder="Ask a question..." autocomplete="off" />
+
+            <button class="btn btn-primary" type="submit">Send</button>
+          </div>
+        </form>
       </div>
-
-      <form id="input-area" onsubmit="sendMessage(event)">
-        <input type="text" id="messageText" autocomplete="off" placeholder="Ask a question..." />
-
-        <button type="submit">Send</button>
-      </form>
     </div>
 
     <script>
@@ -51,25 +70,35 @@
         const messages = document.getElementById("messages");
 
         const message = document.createElement("div");
-        message.className = "msg " + type;
 
-        if (type === "ai") {
+        message.className = "mb-3 d-flex " + (type === "user" ? "justify-content-end" : "justify-content-start");
+
+        const bubble = document.createElement("div");
+
+        bubble.className = "p-3 rounded shadow-sm";
+
+        bubble.style.maxWidth = "80%";
+
+        if (type === "user") {
+          bubble.classList.add("bg-primary", "text-white");
+
+          bubble.textContent = text;
+        } else {
+          bubble.classList.add("bg-light", "text-dark");
+
           let formatted = text.replace(/^AI:\s*/, "").trim();
 
-          // Convert "1. Item 2. Item" into multiline markdown
           formatted = formatted.replace(/(\d+\.)\s+/g, "\n$1 ");
 
-          // Add spacing before bullets
           formatted = formatted.replace(/\s*([-*])\s+/g, "\n$1 ");
 
-          const html = marked.parse(formatted);
-
-          message.innerHTML = DOMPurify.sanitize(html);
-        } else {
-          message.textContent = text;
+          bubble.innerHTML = DOMPurify.sanitize(marked.parse(formatted));
         }
 
+        message.appendChild(bubble);
+
         messages.appendChild(message);
+
         messages.scrollTop = messages.scrollHeight;
       }
 
@@ -78,7 +107,7 @@
 
         const input = document.getElementById("messageText");
 
-        if (input.value.trim() === "") return;
+        if (!input.value.trim()) return;
 
         addMessage(input.value, "user");
 
@@ -86,8 +115,12 @@
 
         input.value = "";
 
-        typingIndicator.style.display = "flex";
+        input.focus();
+
+        typingIndicator.style.display = "block";
       }
+
+      document.getElementById("messageText").focus();
     </script>
   </body>
 </html>
