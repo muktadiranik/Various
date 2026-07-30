@@ -40,10 +40,10 @@
     <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
   </head>
 
-  <body class="h-full flex flex-col bg-zinc-950 text-zinc-100 font-sans antialiased overflow-hidden">
-    <header class="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6">
-      <div class="flex items-center gap-2.5 max-w-4xl w-full mx-auto">
-        <div class="h-7 w-7 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+  <body class="h-screen w-screen flex flex-col bg-zinc-950 text-zinc-100 font-sans antialiased overflow-hidden">
+    <header class="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur sticky top-0 z-20 flex items-center justify-between px-4 sm:px-8 w-full shrink-0">
+      <div class="flex items-center gap-3 w-full">
+        <div class="h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-4 w-4"
@@ -55,7 +55,6 @@
             stroke-linejoin="round">
             <path d="M12 8V4H8"></path>
             <rect width="16" height="12" x="4" y="8" rx="2"></rect>
-
             <path d="M2 14h2"></path>
             <path d="M20 14h2"></path>
             <path d="M15 13v2"></path>
@@ -63,14 +62,14 @@
           </svg>
         </div>
 
-        <span class="font-semibold text-sm tracking-wide text-zinc-100"> LANGCHAIN AI CORE </span>
+        <span class="font-semibold text-base tracking-wide text-zinc-100"> LANGCHAIN AI CORE </span>
       </div>
     </header>
 
-    <main class="flex-1 flex flex-col max-w-4xl w-full mx-auto overflow-hidden relative">
-      <div id="messages" class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 space-y-6 custom-scrollbar" role="log" aria-live="polite"></div>
+    <main class="flex-1 flex flex-col w-full h-[calc(100vh-3.5rem)] overflow-hidden relative">
+      <div id="messages" class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 md:px-12 space-y-6 custom-scrollbar w-full" role="log" aria-live="polite"></div>
 
-      <div id="typing-indicator" class="hidden px-4 py-2 sm:px-6 mb-2">
+      <div id="typing-indicator" class="hidden px-4 py-2 sm:px-8 md:px-12 mb-2 w-full">
         <div class="flex items-center gap-3 text-zinc-400 text-sm">
           <div class="h-8 w-8 rounded-full bg-ai-bg border border-ai-border flex items-center justify-center text-blue-400 shrink-0">
             <svg
@@ -99,15 +98,15 @@
         </div>
       </div>
 
-      <div class="p-4 bg-zinc-950/90 backdrop-blur border-t border-zinc-800/80">
+      <div class="p-4 sm:p-6 bg-zinc-950/90 backdrop-blur border-t border-zinc-800/80 w-full shrink-0">
         <form
           id="input-area"
-          class="relative flex items-end bg-zinc-900/90 rounded-2xl border border-zinc-800 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600 transition-all p-2"
+          class="relative flex items-end bg-zinc-900/90 rounded-2xl border border-zinc-800 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600 transition-all p-2.5 w-full"
           onsubmit="sendMessage(event)">
           <textarea
             id="messageText"
             rows="1"
-            class="flex-1 bg-transparent text-zinc-100 placeholder-zinc-500 resize-none px-3 py-2 focus:outline-none max-h-36 text-sm sm:text-base leading-relaxed custom-scrollbar"
+            class="flex-1 bg-transparent text-zinc-100 placeholder-zinc-500 resize-none px-3 py-2 focus:outline-none max-h-40 text-sm sm:text-base leading-relaxed custom-scrollbar"
             placeholder="Ask a question..."
             autocomplete="off"
             aria-label="Message prompt"></textarea>
@@ -115,7 +114,7 @@
           <button
             type="submit"
             id="sendBtn"
-            class="h-9 w-9 rounded-xl bg-user-bg hover:bg-user-hover text-white flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 disabled:hover:bg-user-bg"
+            class="h-10 w-10 rounded-xl bg-user-bg hover:bg-user-hover text-white flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 disabled:hover:bg-user-bg"
             aria-label="Send Message">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -127,7 +126,6 @@
               stroke-linecap="round"
               stroke-linejoin="round">
               <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.5.5 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path>
-
               <path d="m21.854 2.147-10.94 10.939"></path>
             </svg>
           </button>
@@ -146,10 +144,10 @@
         gfm: true,
       });
 
-      // Handle Textarea Auto-growth & Enter key submit
+      // Auto-growing Textarea
       textarea.addEventListener("input", function () {
         this.style.height = "auto";
-        this.style.height = Math.min(this.scrollHeight, 144) + "px";
+        this.style.height = Math.min(this.scrollHeight, 160) + "px";
       });
 
       textarea.addEventListener("keydown", function (e) {
@@ -191,11 +189,11 @@
         const isUser = type === "user";
 
         const messageRow = document.createElement("div");
-        messageRow.className = `flex gap-3 text-sm sm:text-base animate-message-slide ${isUser ? "justify-end" : "justify-start"}`;
+        messageRow.className = `flex gap-3.5 text-sm sm:text-base animate-message-slide w-full ${isUser ? "justify-end" : "justify-start"}`;
 
         if (isUser) {
           const bubble = document.createElement("div");
-          bubble.className = "max-w-[85%] sm:max-w-[75%] bg-user-bg text-white px-4 py-3 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words";
+          bubble.className = "max-w-[90%] md:max-w-[80%] lg:max-w-[70%] bg-user-bg text-white px-5 py-3.5 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words";
           bubble.textContent = text;
           messageRow.appendChild(bubble);
         } else {
@@ -214,7 +212,7 @@
 
           const bubble = document.createElement("div");
           bubble.className =
-            "max-w-[85%] sm:max-w-[75%] bg-ai-bg border border-ai-border text-zinc-100 px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm markdown-body overflow-hidden break-words";
+            "max-w-[90%] md:max-w-[85%] lg:max-w-[80%] bg-ai-bg border border-ai-border text-zinc-100 px-5 py-3.5 rounded-2xl rounded-tl-sm shadow-sm markdown-body overflow-hidden break-words";
 
           let formatted = text.replace(/^AI:\s*/, "").trim();
           bubble.innerHTML = DOMPurify.sanitize(marked.parse(formatted));
