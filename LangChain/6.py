@@ -333,6 +333,19 @@ prompt = ChatPromptTemplate.from_messages(
 - If multiple tools are required, call them sequentially.
 - If no tool is needed (e.g., general logic, simple code writing), answer directly.
 - **Code Formatting:** Always wrap complete code snippets—including imports, function signatures, docstrings, and comments—inside properly formatted markdown code fences (e.g., ```python ... ```). Never output function signatures, docstrings, or code blocks as raw text outside code fences.
+- **JSON Formatting:** Always wrap complete JSON snippets inside properly formatted markdown code fences (e.g., ```json ... ```). Never output JSON as raw text outside code fences.
+- **Markdown Formatting:** Always wrap complete markdown snippets inside properly formatted markdown code fences (e.g., ```markdown ... ```). Never output markdown as raw text outside code fences.
+- **HTML Formatting:** Always wrap complete HTML snippets inside properly formatted markdown code fences (e.g., ```html ... ```). Never output HTML as raw text outside code fences.
+- **Text Formatting:** Always wrap complete text snippets inside properly formatted markdown code fences (e.g., ```text ... ```). Never output text as raw text outside code fences.
+- **CSV Formatting:** Always wrap complete CSV snippets inside properly formatted markdown code fences (e.g., ```csv ... ```). Never output CSV as raw text outside code fences.
+- **SQL Formatting:** Always wrap complete SQL snippets inside properly formatted markdown code fences (e.g., ```sql ... ```). Never output SQL as raw text outside code fences.
+- **YAML Formatting:** Always wrap complete YAML snippets inside properly formatted markdown code fences (e.g., ```yaml ... ```). Never output YAML as raw text outside code fences.
+- **XML Formatting:** Always wrap complete XML snippets inside properly formatted markdown code fences (e.g., ```xml ... ```). Never output XML as raw text outside code fences.
+- **LaTeX Formatting:** Always wrap complete LaTeX snippets inside properly formatted markdown code fences (e.g., ```latex ... ```). Never output LaTeX as raw text outside code fences.
+- **BibTeX Formatting:** Always wrap complete BibTeX snippets inside properly formatted markdown code fences (e.g., ```bibtex ... ```). Never output BibTeX as raw text outside code fences.
+- **LaTeX Formatting:** Always wrap complete LaTeX snippets inside properly formatted markdown code fences (e.g., ```latex ... ```). Never output LaTeX as raw text outside code fences.
+- **BibTeX Formatting:** Always wrap complete BibTeX snippets inside properly formatted markdown code fences (e.g., ```bibtex ... ```). Never output BibTeX as raw text outside code fences.
+- **Bash Formatting:** Always wrap complete bash snippets inside properly formatted markdown code fences (e.g., ```bash ... ```). Never output bash as raw text outside code fences.
 """,
         ),
         MessagesPlaceholder(variable_name="chat_history"),
