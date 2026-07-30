@@ -5,13 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LangChain AI Core</title>
 
-    <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)" />
-    <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin />
-    <link
-      href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)"
-      rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-    <script src="[https://cdn.tailwindcss.com?plugins=typography](https://cdn.tailwindcss.com?plugins=typography)"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
       tailwind.config = {
         darkMode: "class",
@@ -21,7 +19,7 @@
               sans: ["Inter", "sans-serif"],
             },
             colors: {
-              gemini: {
+              theme: {
                 bg: "#131314",
                 surface: "#1e1e1f",
                 border: "#282a2c",
@@ -34,9 +32,9 @@
       };
     </script>
 
-    <script src="[https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js](https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js)"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 
-    <script src="[https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js](https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js)"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
 
     <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
   </head>
@@ -44,20 +42,26 @@
   <body class="h-screen w-screen flex flex-col bg-[#131314] text-[#e3e2e6] font-sans antialiased overflow-hidden">
     <header class="h-14 bg-[#131314] border-b border-[#282a2c]/60 sticky top-0 z-20 flex items-center px-4 sm:px-6 w-full shrink-0 justify-between">
       <div class="flex items-center gap-2.5">
-        <div class="h-8 w-8 rounded-full flex items-center justify-center text-blue-400">
-          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">
-            <path d="M12 0C12 6.62742 6.62742 12 0 12C6.62742 12 12 17.3726 12 24C12 17.3726 17.3726 12 24 12C17.3726 12 12 6.62742 12 0Z" fill="url(#gemini_grad)" />
-            <defs>
-              <linearGradient id="gemini_grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#7cacf8" />
-                <stop offset="0.5" stop-color="#9b72cb" />
-                <stop offset="1" stop-color="#d96570" />
-              </linearGradient>
-            </defs>
+        <div class="h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M12 8V4H8"></path>
+            <rect width="16" height="12" x="4" y="8" rx="2"></rect>
+            <path d="M2 14h2"></path>
+            <path d="M20 14h2"></path>
+            <path d="M15 13v2"></path>
+            <path d="M9 13v2"></path>
           </svg>
         </div>
 
-        <span class="font-medium text-base text-[#e3e2e6] tracking-tight"> LangChain AI </span>
+        <span class="font-medium text-base text-[#e3e2e6] tracking-tight"> LANGCHAIN AI CORE </span>
       </div>
     </header>
 
@@ -72,7 +76,7 @@
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
             </svg>
           </div>
-          <span class="text-zinc-400 text-sm font-medium">Gemini is thinking...</span>
+          <span class="text-zinc-400 text-sm font-medium">AI is thinking...</span>
         </div>
       </div>
 
@@ -85,7 +89,7 @@
             id="messageText"
             rows="1"
             class="flex-1 bg-transparent text-[#e3e2e6] placeholder-[#8e9196] resize-none px-2 py-2 focus:outline-none max-h-40 text-sm sm:text-base leading-relaxed custom-scrollbar"
-            placeholder="Ask LangChain AI..."
+            placeholder="Ask a question..."
             autocomplete="off"
             aria-label="Message prompt"></textarea>
 
@@ -95,7 +99,7 @@
             class="h-10 w-10 rounded-full bg-[#e3e2e6] hover:bg-white text-[#131314] flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
             aria-label="Send Message">
             <svg
-              xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)"
+              xmlns="http://www.w3.org/2000/svg"
               class="h-5 w-5"
               viewBox="0 0 24 24"
               fill="none"
@@ -116,7 +120,7 @@
       const textarea = document.getElementById("messageText");
       const sendBtn = document.getElementById("sendBtn");
 
-      // Custom Gemini Code Block Renderer with Language Label and Copy Button
+      // Custom Code Block Renderer with Language Label and Copy Button
       const renderer = new marked.Renderer();
       renderer.code = function (code, language) {
         const lang = language || "code";
@@ -207,17 +211,15 @@
           messageRow.appendChild(bubble);
         } else {
           const avatar = document.createElement("div");
-          avatar.className = "h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-1";
+          avatar.className = "h-7 w-7 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 mt-1";
           avatar.innerHTML = `
-            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">
-              <path d="M12 0C12 6.62742 6.62742 12 0 12C6.62742 12 12 17.3726 12 24C12 17.3726 17.3726 12 24 12C17.3726 12 12 6.62742 12 0Z" fill="url(#gemini_grad_msg)"/>
-              <defs>
-                <linearGradient id="gemini_grad_msg" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#7cacf8"/>
-                  <stop offset="0.5" stop-color="#9b72cb"/>
-                  <stop offset="1" stop-color="#d96570"/>
-                </linearGradient>
-              </defs>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 8V4H8"></path>
+              <rect width="16" height="12" x="4" y="8" rx="2"></rect>
+              <path d="M2 14h2"></path>
+              <path d="M20 14h2"></path>
+              <path d="M15 13v2"></path>
+              <path d="M9 13v2"></path>
             </svg>
           `;
 
