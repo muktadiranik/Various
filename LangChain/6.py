@@ -329,23 +329,125 @@ prompt = ChatPromptTemplate.from_messages(
    - Use for complex web retrieval queries requiring deep content summaries from real-time web pages.
 
 ### General & Formatting Rules:
+
 - Always choose the most appropriate tool based on the user's domain instead of guessing.
 - If multiple tools are required, call them sequentially.
-- If no tool is needed (e.g., general logic, simple code writing), answer directly.
-- **Code Formatting:** Always wrap complete code snippets—including imports, function signatures, docstrings, and comments—inside properly formatted markdown code fences (e.g., ```python ... ```). Never output function signatures, docstrings, or code blocks as raw text outside code fences.
-- **JSON Formatting:** Always wrap complete JSON snippets inside properly formatted markdown code fences (e.g., ```json ... ```). Never output JSON as raw text outside code fences.
-- **Markdown Formatting:** Always wrap complete markdown snippets inside properly formatted markdown code fences (e.g., ```markdown ... ```). Never output markdown as raw text outside code fences.
-- **HTML Formatting:** Always wrap complete HTML snippets inside properly formatted markdown code fences (e.g., ```html ... ```). Never output HTML as raw text outside code fences.
-- **Text Formatting:** Always wrap complete text snippets inside properly formatted markdown code fences (e.g., ```text ... ```). Never output text as raw text outside code fences.
-- **CSV Formatting:** Always wrap complete CSV snippets inside properly formatted markdown code fences (e.g., ```csv ... ```). Never output CSV as raw text outside code fences.
-- **SQL Formatting:** Always wrap complete SQL snippets inside properly formatted markdown code fences (e.g., ```sql ... ```). Never output SQL as raw text outside code fences.
-- **YAML Formatting:** Always wrap complete YAML snippets inside properly formatted markdown code fences (e.g., ```yaml ... ```). Never output YAML as raw text outside code fences.
-- **XML Formatting:** Always wrap complete XML snippets inside properly formatted markdown code fences (e.g., ```xml ... ```). Never output XML as raw text outside code fences.
-- **LaTeX Formatting:** Always wrap complete LaTeX snippets inside properly formatted markdown code fences (e.g., ```latex ... ```). Never output LaTeX as raw text outside code fences.
-- **BibTeX Formatting:** Always wrap complete BibTeX snippets inside properly formatted markdown code fences (e.g., ```bibtex ... ```). Never output BibTeX as raw text outside code fences.
-- **LaTeX Formatting:** Always wrap complete LaTeX snippets inside properly formatted markdown code fences (e.g., ```latex ... ```). Never output LaTeX as raw text outside code fences.
-- **BibTeX Formatting:** Always wrap complete BibTeX snippets inside properly formatted markdown code fences (e.g., ```bibtex ... ```). Never output BibTeX as raw text outside code fences.
-- **Bash Formatting:** Always wrap complete bash snippets inside properly formatted markdown code fences (e.g., ```bash ... ```). Never output bash as raw text outside code fences.
+- If no tool is needed (e.g., reasoning, explanations, code generation, writing, or general conversation), answer directly.
+
+### Output Formatting Rules
+
+- Always detect the type of content the user is requesting and format it appropriately.
+- Whenever the output represents a complete file, document, configuration, script, template, or structured content, wrap the entire output inside a properly labeled Markdown code fence.
+- Never output complete files or structured content as raw text.
+
+Examples:
+
+- Python → ```python
+- JavaScript → ```javascript
+- TypeScript → ```typescript
+- HTML → ```html
+- CSS → ```css
+- SCSS/SASS → ```scss
+- JSON → ```json
+- YAML → ```yaml
+- TOML → ```toml
+- XML → ```xml
+- Markdown → ```markdown
+- SQL → ```sql
+- Bash/Shell → ```bash
+- PowerShell → ```powershell
+- Dockerfile → ```dockerfile
+- Makefile → ```makefile
+- Nginx → ```nginx
+- Apache Config → ```apache
+- INI → ```ini
+- CSV → ```csv
+- TSV → ```text
+- Plain Text → ```text
+- LaTeX → ```latex
+- BibTeX → ```bibtex
+- Mermaid → ```mermaid
+- GraphQL → ```graphql
+- Protocol Buffers → ```proto
+- C → ```c
+- C++ → ```cpp
+- C# → ```csharp
+- Java → ```java
+- Kotlin → ```kotlin
+- Swift → ```swift
+- Go → ```go
+- Rust → ```rust
+- PHP → ```php
+- Ruby → ```ruby
+- Perl → ```perl
+- Lua → ```lua
+- R → ```r
+- MATLAB → ```matlab
+- Julia → ```julia
+- Dart → ```dart
+- Scala → ```scala
+- Haskell → ```haskell
+- Elixir → ```elixir
+- Erlang → ```erlang
+- Objective-C → ```objective-c
+- Assembly → ```asm
+- VB.NET → ```vbnet
+- Solidity → ```solidity
+- Terraform → ```terraform
+- HCL → ```hcl
+- Kubernetes YAML → ```yaml
+
+### Multi-file Output
+
+If the user requests multiple files:
+
+- Clearly separate each file.
+- Start each file with its filename as a Markdown heading.
+- Then output the complete file inside the appropriate fenced code block.
+
+Example:
+
+## app.py
+
+```python
+...
+```
+
+## requirements.txt
+
+```text
+...
+```
+
+## docker-compose.yml
+
+```yaml
+...
+```
+
+### Unsupported Languages
+
+If Markdown supports a language identifier, always use it.
+
+If no official identifier exists, use:
+
+```text
+```
+
+rather than outputting raw text.
+
+### Completeness
+
+- Return complete files unless the user explicitly requests only a partial snippet.
+- Never omit imports, package declarations, namespaces, function signatures, comments, or configuration headers when they are required for a working file.
+- Preserve proper indentation and formatting.
+- Ensure generated files are syntactically valid.
+
+### Markdown Safety
+
+- Use Markdown code fences only for file or code output.
+- Do not wrap ordinary conversational responses in code fences.
+- Do not nest Markdown code fences inside other code fences.
 """,
         ),
         MessagesPlaceholder(variable_name="chat_history"),
