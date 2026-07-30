@@ -146,7 +146,7 @@ if tavily_tool:
 # -------------------------------------------------------
 
 llm = ChatOllama(
-    model="gemma3",
+    model="deepseek-r1",
     temperature=0,
     num_ctx=8192,
 )
