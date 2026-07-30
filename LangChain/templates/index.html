@@ -39,25 +39,6 @@
   </head>
 
   <body class="h-screen w-screen flex flex-col bg-[#131314] text-[#e3e2e6] font-sans antialiased overflow-hidden relative">
-    <div
-      id="toast-notification"
-      class="fixed top-5 right-5 z-50 transform translate-y-[-20px] opacity-0 pointer-events-none transition-all duration-300 ease-out flex items-center gap-2.5 bg-[#282a2c] text-[#e3e2e6] border border-zinc-700/80 px-4 py-2.5 rounded-xl shadow-2xl text-sm font-medium">
-      <div class="h-5 w-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-3.5 w-3.5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="3"
-          stroke-linecap="round"
-          stroke-linejoin="round">
-          <polyline points="20 6 9 17 4 12"></polyline>
-        </svg>
-      </div>
-      <span>Copied to clipboard</span>
-    </div>
-
     <header class="h-14 bg-[#131314] border-b border-[#282a2c]/60 sticky top-0 z-20 flex items-center px-4 sm:px-6 w-full shrink-0 justify-between">
       <div class="flex items-center gap-2.5">
         <div class="h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
@@ -137,21 +118,12 @@
       const typingIndicator = document.getElementById("typing-indicator");
       const textarea = document.getElementById("messageText");
       const sendBtn = document.getElementById("sendBtn");
-      let toastTimeout = null;
 
-      // Custom Code Block Renderer
+      // Custom Code Block Renderer without Copy Button Header
       const renderer = new marked.Renderer();
       renderer.code = function (code, language) {
-        const lang = language || "code";
         return `
           <div class="code-block-wrapper my-4 rounded-xl overflow-hidden border border-[#282a2c] bg-[#0e0e0e]">
-            <div class="code-block-header flex items-center justify-between px-4 py-2 bg-[#1e1e1f] text-xs text-zinc-400 font-mono border-b border-[#282a2c]">
-              <span>${lang}</span>
-              <button onclick="copyCode(this)" class="hover:text-white transition-colors flex items-center gap-1.5 focus:outline-none" aria-label="Copy Code">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                <span>Copy</span>
-              </button>
-            </div>
             <pre class="p-4 overflow-x-auto text-sm text-[#e3e2e6] font-mono leading-relaxed"><code>${code}</code></pre>
           </div>
         `;
@@ -200,69 +172,6 @@
           textarea.focus();
         }
         scrollToBottom();
-      }
-
-      function showToast() {
-        const toast = document.getElementById("toast-notification");
-
-        toast.classList.remove("opacity-0", "translate-y-[-20px]", "pointer-events-none");
-        toast.classList.add("opacity-100", "translate-y-0");
-
-        if (toastTimeout) clearTimeout(toastTimeout);
-
-        toastTimeout = setTimeout(() => {
-          toast.classList.remove("opacity-100", "translate-y-0");
-          toast.classList.add("opacity-0", "translate-y-[-20px]", "pointer-events-none");
-        }, 2500);
-      }
-
-      function copyCode(button) {
-        const codeBlock = button.closest(".code-block-wrapper").querySelector("code");
-        const codeText = codeBlock.innerText;
-
-        const updateBtnUI = () => {
-          const label = button.querySelector("span");
-          const originalText = label.innerText;
-          label.innerText = "Copied!";
-          button.classList.add("text-emerald-400");
-
-          showToast();
-
-          setTimeout(() => {
-            label.innerText = originalText;
-            button.classList.remove("text-emerald-400");
-          }, 2000);
-        };
-
-        // Modern Clipboard API with execCommand Fallback
-        if (navigator.clipboard && window.isSecureContext) {
-          navigator.clipboard
-            .writeText(codeText)
-            .then(updateBtnUI)
-            .catch(() => fallbackCopyText(codeText, updateBtnUI));
-        } else {
-          fallbackCopyText(codeText, updateBtnUI);
-        }
-      }
-
-      function fallbackCopyText(text, onSuccess) {
-        const tempTextArea = document.createElement("textarea");
-        tempTextArea.value = text;
-        tempTextArea.style.position = "fixed";
-        tempTextArea.style.left = "-9999px";
-        tempTextArea.style.top = "-9999px";
-        document.body.appendChild(tempTextArea);
-        tempTextArea.focus();
-        tempTextArea.select();
-
-        try {
-          const successful = document.execCommand("copy");
-          if (successful && onSuccess) onSuccess();
-        } catch (err) {
-          console.error("Fallback copy failed: ", err);
-        } finally {
-          document.body.removeChild(tempTextArea);
-        }
       }
 
       function addMessage(text, type) {
