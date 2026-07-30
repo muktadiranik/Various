@@ -1,5 +1,4 @@
 import os
-import asyncio
 from typing import List
 
 import uvicorn
@@ -9,9 +8,8 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-# ArXiv & Wikipedia
+# ArXiv
 import arxiv
-import wikipedia
 
 # LangChain
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
@@ -19,8 +17,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 from langchain_community.tools import DuckDuckGoSearchRun, PubmedQueryRun
 from langchain_tavily import TavilySearch
+
+# Wikipedia
+import wikipedia
 
 wikipedia.set_user_agent("WikipediaChatbot/1.0 (contact@example.com)")
 
@@ -68,41 +70,52 @@ manager = ConnectionManager()
 
 
 @tool
-async def wikipedia_search(query: str) -> str:
+def wikipedia_search(query: str) -> str:
     """
     Search Wikipedia for general knowledge, historical events,
     biographies, places, science, and technology.
     """
     try:
-        # Offload sync wikipedia library call to threadpool
-        page = await asyncio.to_thread(wikipedia.page, query, auto_suggest=True)
-        return f"Title: {page.title}\n\nSummary: {page.summary[:1000]}\n\nURL: {page.url}"
+        page = wikipedia.page(query, auto_suggest=True)
+
+        return f"Title: {page.title}\n\nSummary: {page.summary[:1000]}\n\nURL: {page.url}\n\n"
+
     except wikipedia.DisambiguationError as e:
-        return f"Multiple matching pages found: {', '.join(e.options[:5])}"
+        return (
+            "Multiple matching pages found:\n\n"
+            + "\n".join(e.options[:10])
+        )
+
     except wikipedia.PageError:
         return "No Wikipedia page found."
+
     except Exception as e:
         return f"Wikipedia search failed: {e}"
 
 
 @tool
-async def arxiv_search(query: str) -> str:
-    """Search arXiv for academic research papers."""
+def arxiv_search(query: str) -> str:
+    """Search arXiv for academic papers."""
     try:
-        def _fetch():
-            client = arxiv.Client()
-            search = arxiv.Search(
-                query=query,
-                max_results=3,
-                sort_by=arxiv.SortCriterion.Relevance,
-            )
-            return [
-                f"Title: {paper.title}\nAuthors: {', '.join(a.name for a in paper.authors)}\nPublished: {paper.published.date()}\nSummary: {paper.summary[:600]}\nURL: {paper.entry_id}"
-                for paper in client.results(search)
-            ]
+        client = arxiv.Client()
 
-        papers = await asyncio.to_thread(_fetch)
-        return "\n\n---\n\n".join(papers) if papers else "No papers found."
+        search = arxiv.Search(
+            query=query,
+            max_results=3,
+            sort_by=arxiv.SortCriterion.Relevance,
+        )
+
+        papers = []
+
+        for paper in client.results(search):
+            papers.append(
+                f"Title: {paper.title}\n\nAuthors: {', '.join(a.name for a in paper.authors)}\n\nPublished: {paper.published.date()}\n\nSummary: {paper.summary[:600]}\n\nURL: {paper.entry_id}\n\n")
+
+        if not papers:
+            return "No papers found."
+
+        return "\n\n" + "=" * 80 + "\n\n".join(papers)
+
     except Exception as e:
         return f"ArXiv search failed: {e}"
 
@@ -111,11 +124,26 @@ pubmed_runner = PubmedQueryRun()
 
 
 @tool
-async def pubmed_search(query: str) -> str:
-    """Search biomedical literature from PubMed for medicine, healthcare, biology, and clinical research."""
+def pubmed_search(query: str) -> str:
+    """
+    Search biomedical literature from PubMed.
+
+    Use for medicine,
+    diseases,
+    healthcare,
+    biology,
+    pharmacology,
+    genetics,
+    and clinical research.
+    """
     try:
-        result = await asyncio.to_thread(pubmed_runner.run, query)
-        return result if result.strip() else "No PubMed results found."
+        result = pubmed_runner.run(query)
+
+        if not result.strip():
+            return "No PubMed results found."
+
+        return result
+
     except Exception as e:
         return f"PubMed search failed: {e}"
 
@@ -124,29 +152,60 @@ duckduckgo_runner = DuckDuckGoSearchRun()
 
 
 @tool
-async def duckduckgo_search(query: str) -> str:
-    """Search the web for real-time news, current events, programming, or quick factual searches."""
+def duckduckgo_search(query: str) -> str:
+    """
+    Search the public web using DuckDuckGo.
+
+    Best for:
+    - recent news
+    - current events
+    - websites
+    - programming
+    - quick factual searches
+    """
     try:
-        return await asyncio.to_thread(duckduckgo_runner.run, query)
+        return duckduckgo_runner.run(query)
+
     except Exception as e:
         return f"DuckDuckGo search failed: {e}"
 
 
 tavily_tool = None
+
 if os.getenv("TAVILY_API_KEY"):
-    tavily_runner = TavilySearch(max_results=3, search_depth="basic")
+    tavily_runner = TavilySearch(
+        max_results=5,
+        search_depth="advanced",
+        include_answer=True,
+    )
 
     @tool
-    async def tavily_search(query: str) -> str:
-        """Search the internet using Tavily for deep web research and real-time summaries."""
+    def tavily_search(query: str) -> str:
+        """
+        Search the internet using Tavily.
+
+        Best for:
+
+        - recent news
+        - deep web research
+        - long-form information
+        - real-time web pages
+        """
         try:
-            return await asyncio.to_thread(tavily_runner.run, query)
+            return tavily_runner.run(query)
+
         except Exception as e:
             return f"Tavily search failed: {e}"
 
     tavily_tool = tavily_search
 
-tools = [wikipedia_search, arxiv_search, pubmed_search, duckduckgo_search]
+tools = [
+    wikipedia_search,
+    arxiv_search,
+    pubmed_search,
+    duckduckgo_search,
+]
+
 if tavily_tool:
     tools.append(tavily_tool)
 
@@ -154,12 +213,21 @@ if tavily_tool:
 # -------------------------------------------------------
 # LLM Configuration
 # -------------------------------------------------------
-llm = ChatOllama(
-    model="llama3.2",
-    temperature=0,
-    num_ctx=8192,
-)
 
+USE_OLLAMA = True
+
+if USE_OLLAMA:
+    llm = ChatOllama(
+        model="llama3.2",
+        temperature=0,
+        num_ctx=8192,
+    )
+else:
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        temperature=0,
+        groq_api_key=os.getenv("GROQ_API_KEY"),
+    )
 
 system_prompt = """
 You are an advanced AI research assistant.
@@ -383,7 +451,7 @@ agent_executor = AgentExecutor(
     verbose=True,
     max_iterations=5,
     handle_parsing_errors=True,
-    return_intermediate_steps=False,
+    return_intermediate_steps=True,
 )
 
 
