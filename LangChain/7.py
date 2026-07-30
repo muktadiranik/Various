@@ -3,7 +3,6 @@ import asyncio
 from typing import List
 
 import uvicorn
-import httpx
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -16,11 +15,10 @@ import wikipedia
 
 # LangChain
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.messages import AIMessage, HumanMessage, trim_messages
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
-from langchain_groq import ChatGroq
 from langchain_community.tools import DuckDuckGoSearchRun, PubmedQueryRun
 from langchain_tavily import TavilySearch
 
@@ -87,7 +85,7 @@ async def arxiv_search(query: str) -> str:
             client = arxiv.Client()
             search = arxiv.Search(
                 query=query,
-                max_results=2,  # Reduced from 3 to save context tokens
+                max_results=3,  # Reduced to save context tokens
                 sort_by=arxiv.SortCriterion.Relevance,
             )
             return [
@@ -146,7 +144,7 @@ if tavily_tool:
 
 
 # -------------------------------------------------------
-# LLM & Lightweight Prompt
+# LLM & Prompt
 # -------------------------------------------------------
 
 llm = ChatOllama(
@@ -184,7 +182,7 @@ agent_executor = AgentExecutor(
     agent=agent,
     tools=tools,
     verbose=True,              # Set to False in production to avoid console I/O slowdowns
-    max_iterations=3,          # Cap tool execution iterations to 3
+    max_iterations=5,          # Cap tool execution iterations to 5
     max_execution_time=15.0,   # Set 15s timeout limit
     handle_parsing_errors=True,
     return_intermediate_steps=False,
