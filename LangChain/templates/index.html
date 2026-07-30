@@ -1,126 +1,251 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="h-full bg-zinc-950">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LangChain AI Core</title>
 
-    <title>LangChain Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-    <!-- Bootstrap -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+            },
+            colors: {
+              user: {
+                bg: "#2563eb",
+                hover: "#1d4ed8",
+              },
+              ai: {
+                bg: "#18181b",
+                border: "#27272a",
+              },
+            },
+          },
+        },
+      };
+    </script>
 
-    <!-- Markdown -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 
-    <!-- HTML Sanitizer -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
 
     <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
   </head>
 
-  <body class="vh-100 overflow-hidden">
-    <div class="container-fluid h-100 p-0">
-      <div id="chat-container" class="d-flex flex-column h-100">
-        <!-- Header -->
+  <body class="h-full flex flex-col bg-zinc-950 text-zinc-100 font-sans antialiased overflow-hidden">
+    <header class="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6">
+      <div class="flex items-center gap-2.5 max-w-4xl w-full mx-auto">
+        <div class="h-7 w-7 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M12 8V4H8"></path>
+            <rect width="16" height="12" x="4" y="8" rx="2"></rect>
 
-        <header class="navbar navbar-dark bg-dark px-4 py-3 shadow">
-          <span class="navbar-brand mb-0 h4"> LANGCHAIN AI CORE </span>
-        </header>
-
-        <!-- Messages -->
-
-        <div id="messages" class="flex-grow-1 overflow-auto p-3"></div>
-
-        <!-- Typing Indicator -->
-
-        <div id="typing-indicator" class="px-3 py-2 text-secondary" style="display: none">
-          <span class="text-primary me-2">●</span>
-
-          AI is processing...
+            <path d="M2 14h2"></path>
+            <path d="M20 14h2"></path>
+            <path d="M15 13v2"></path>
+            <path d="M9 13v2"></path>
+          </svg>
         </div>
 
-        <!-- Input -->
+        <span class="font-semibold text-sm tracking-wide text-zinc-100"> LANGCHAIN AI CORE </span>
+      </div>
+    </header>
 
-        <form id="input-area" class="border-top bg-body p-3" onsubmit="sendMessage(event)">
-          <div class="input-group">
-            <input id="messageText" type="text" class="form-control" placeholder="Ask a question..." autocomplete="off" />
+    <main class="flex-1 flex flex-col max-w-4xl w-full mx-auto overflow-hidden relative">
+      <div id="messages" class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 space-y-6 custom-scrollbar" role="log" aria-live="polite"></div>
 
-            <button class="btn btn-primary" type="submit">Send</button>
+      <div id="typing-indicator" class="hidden px-4 py-2 sm:px-6 mb-2">
+        <div class="flex items-center gap-3 text-zinc-400 text-sm">
+          <div class="h-8 w-8 rounded-full bg-ai-bg border border-ai-border flex items-center justify-center text-blue-400 shrink-0">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M12 8V4H8"></path>
+              <rect width="16" height="12" x="4" y="8" rx="2"></rect>
+              <path d="M2 14h2"></path>
+              <path d="M20 14h2"></path>
+              <path d="M15 13v2"></path>
+              <path d="M9 13v2"></path>
+            </svg>
           </div>
+
+          <div class="flex items-center gap-1.5 bg-ai-bg border border-ai-border px-4 py-3 rounded-2xl">
+            <span class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 0ms"></span>
+            <span class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 150ms"></span>
+            <span class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 300ms"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-zinc-950/90 backdrop-blur border-t border-zinc-800/80">
+        <form
+          id="input-area"
+          class="relative flex items-end bg-zinc-900/90 rounded-2xl border border-zinc-800 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600 transition-all p-2"
+          onsubmit="sendMessage(event)">
+          <textarea
+            id="messageText"
+            rows="1"
+            class="flex-1 bg-transparent text-zinc-100 placeholder-zinc-500 resize-none px-3 py-2 focus:outline-none max-h-36 text-sm sm:text-base leading-relaxed custom-scrollbar"
+            placeholder="Ask a question..."
+            autocomplete="off"
+            aria-label="Message prompt"></textarea>
+
+          <button
+            type="submit"
+            id="sendBtn"
+            class="h-9 w-9 rounded-xl bg-user-bg hover:bg-user-hover text-white flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 disabled:hover:bg-user-bg"
+            aria-label="Send Message">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.5.5 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path>
+
+              <path d="m21.854 2.147-10.94 10.939"></path>
+            </svg>
+          </button>
         </form>
       </div>
-    </div>
+    </main>
 
     <script>
       const ws = new WebSocket("wss://excusable-fiscally-confiding.ngrok-free.dev/ws/chat");
-
       const typingIndicator = document.getElementById("typing-indicator");
+      const textarea = document.getElementById("messageText");
+      const sendBtn = document.getElementById("sendBtn");
 
       marked.setOptions({
         breaks: true,
         gfm: true,
       });
 
+      // Handle Textarea Auto-growth & Enter key submit
+      textarea.addEventListener("input", function () {
+        this.style.height = "auto";
+        this.style.height = Math.min(this.scrollHeight, 144) + "px";
+      });
+
+      textarea.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage(e);
+        }
+      });
+
       ws.onmessage = function (event) {
-        typingIndicator.style.display = "none";
+        setLoadingState(false);
         addMessage(event.data, "ai");
       };
 
+      ws.onerror = function () {
+        setLoadingState(false);
+      };
+
+      ws.onclose = function () {
+        setLoadingState(false);
+      };
+
+      function setLoadingState(isLoading) {
+        if (isLoading) {
+          typingIndicator.classList.remove("hidden");
+          sendBtn.disabled = true;
+          textarea.disabled = true;
+        } else {
+          typingIndicator.classList.add("hidden");
+          sendBtn.disabled = false;
+          textarea.disabled = false;
+          textarea.focus();
+        }
+        scrollToBottom();
+      }
+
       function addMessage(text, type) {
         const messages = document.getElementById("messages");
+        const isUser = type === "user";
 
-        const message = document.createElement("div");
+        const messageRow = document.createElement("div");
+        messageRow.className = `flex gap-3 text-sm sm:text-base animate-message-slide ${isUser ? "justify-end" : "justify-start"}`;
 
-        message.className = "mb-3 d-flex " + (type === "user" ? "justify-content-end" : "justify-content-start");
-
-        const bubble = document.createElement("div");
-
-        bubble.className = "p-3 rounded shadow-sm";
-
-        bubble.style.maxWidth = "80%";
-
-        if (type === "user") {
-          bubble.classList.add("bg-primary", "text-white");
-
+        if (isUser) {
+          const bubble = document.createElement("div");
+          bubble.className = "max-w-[85%] sm:max-w-[75%] bg-user-bg text-white px-4 py-3 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words";
           bubble.textContent = text;
+          messageRow.appendChild(bubble);
         } else {
-          bubble.classList.add("bg-light", "text-dark");
+          const avatar = document.createElement("div");
+          avatar.className = "h-8 w-8 rounded-full bg-ai-bg border border-ai-border flex items-center justify-center text-blue-400 shrink-0 mt-0.5";
+          avatar.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 8V4H8"></path>
+              <rect width="16" height="12" x="4" y="8" rx="2"></rect>
+              <path d="M2 14h2"></path>
+              <path d="M20 14h2"></path>
+              <path d="M15 13v2"></path>
+              <path d="M9 13v2"></path>
+            </svg>
+          `;
+
+          const bubble = document.createElement("div");
+          bubble.className =
+            "max-w-[85%] sm:max-w-[75%] bg-ai-bg border border-ai-border text-zinc-100 px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm markdown-body overflow-hidden break-words";
 
           let formatted = text.replace(/^AI:\s*/, "").trim();
-
-          formatted = formatted.replace(/(\d+\.)\s+/g, "\n$1 ");
-
-          formatted = formatted.replace(/\s*([-*])\s+/g, "\n$1 ");
-
           bubble.innerHTML = DOMPurify.sanitize(marked.parse(formatted));
+
+          messageRow.appendChild(avatar);
+          messageRow.appendChild(bubble);
         }
 
-        message.appendChild(bubble);
+        messages.appendChild(messageRow);
+        scrollToBottom();
+      }
 
-        messages.appendChild(message);
-
+      function scrollToBottom() {
+        const messages = document.getElementById("messages");
         messages.scrollTop = messages.scrollHeight;
       }
 
       function sendMessage(event) {
         event.preventDefault();
+        const text = textarea.value.trim();
+        if (!text) return;
 
-        const input = document.getElementById("messageText");
+        addMessage(text, "user");
+        ws.send(text);
 
-        if (!input.value.trim()) return;
-
-        addMessage(input.value, "user");
-
-        ws.send(input.value);
-
-        input.value = "";
-
-        input.focus();
-
-        typingIndicator.style.display = "block";
+        textarea.value = "";
+        textarea.style.height = "auto";
+        setLoadingState(true);
       }
 
-      document.getElementById("messageText").focus();
+      textarea.focus();
     </script>
   </body>
 </html>
