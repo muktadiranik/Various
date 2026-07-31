@@ -226,7 +226,7 @@ prompt = ChatPromptTemplate.from_messages(
 
 ### Tool Selection Rules:
 
-2. **Wikipedia (`wikipedia_search`)**:
+1. **Wikipedia (`wikipedia_search`)**:
    - Primary tool for encyclopedia knowledge, historical events, biographies, geography, and foundational concepts.
    - general knowledge
    - history
@@ -236,7 +236,7 @@ prompt = ChatPromptTemplate.from_messages(
    - countries
    - encyclopedia information
 
-3. **ArXiv (`arxiv_search`)**:
+2. **ArXiv (`arxiv_search`)**:
    - Use exclusively for academic pre-prints in AI, ML, Computer Science, Physics, and Mathematics research papers.
    - Artificial Intelligence
    - Machine Learning
@@ -245,7 +245,7 @@ prompt = ChatPromptTemplate.from_messages(
    - Physics
    - scientific papers
 
-4. **PubMed (`pubmed_search`)**:
+3. **PubMed (`pubmed_search`)**:
    - Use for medical, healthcare, biomedical, and clinical research literature.
    - medicine
    - diseases
@@ -254,15 +254,15 @@ prompt = ChatPromptTemplate.from_messages(
    - clinical research
    - biomedical literature
 
-5. **DuckDuckGo (`duckduckgo_search`)**:
-   - Secondary fallback web search tool if Google search yields no results or fails.
+4. **DuckDuckGo (`duckduckgo_search`)**:
+   - Use for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
    - recent news
    - websites
    - current events
    - programming questions
    - quick web searches
 
-6. **Tavily Search (`tavily_search`)**:
+5. **Tavily Search (`tavily_search`)**:
    - Use for complex web retrieval queries requiring deep content summaries from real-time web pages.
    - deep web research
    - comprehensive summaries
