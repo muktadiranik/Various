@@ -34,15 +34,6 @@ wikipedia.set_user_agent("WikipediaChatbot/1.0 (contact@example.com)")
 MAX_CHAT_HISTORY = 10
 load_dotenv()
 
-app = FastAPI(title="Multi-Source Knowledge Chatbot", version="1.0.0")
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
-
-# Global references for Playwright and Browser objects
-playwright_instance: Optional[Playwright] = None
-browser_instance: Optional[Browser] = None
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -72,6 +63,19 @@ async def lifespan(app: FastAPI):
         await browser_instance.close()
     if playwright_instance:
         await playwright_instance.stop()
+
+app = FastAPI(
+    title="Multi-Source Knowledge Chatbot",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+# Global references for Playwright and Browser objects
+playwright_instance: Optional[Playwright] = None
+browser_instance: Optional[Browser] = None
 
 
 class ConnectionManager:
@@ -255,7 +259,7 @@ if tavily_tool:
 # -------------------------------------------------------
 
 llm = ChatOllama(
-    model="qwen2.5-coder:3b",
+    model="llama3.2",
     temperature=0,
     num_ctx=8192,
 )
