@@ -185,7 +185,7 @@ async def google_playwright_search(query: str) -> str:
     Provides fast, real-time web news and snippets without external API keys.
     """
     global browser_instance
-    
+
     if not browser_instance or not browser_instance.is_connected():
         return "Browser instance is not available."
 
@@ -196,47 +196,49 @@ async def google_playwright_search(query: str) -> str:
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 800}
         )
-        
+
         page = await context.new_page()
-        
+
         # Block heavy media assets to speed up page load & save bandwidth
         await page.route(
-            "**/*.{png,jpg,jpeg,gif,svg,css,woff,woff2}", 
+            "**/*.{png,jpg,jpeg,gif,svg,css,woff,woff2}",
             lambda route: route.abort()
         )
-        
+
         # Navigate to Google Search
         search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}&hl=en"
         await page.goto(search_url, wait_until="domcontentloaded", timeout=8000)
-        
+
         # Extract page HTML
         html = await page.content()
-        
+
         # Parse Google Search Result DOM with BeautifulSoup
         soup = BeautifulSoup(html, "html.parser")
         results = []
-        
+
         for g in soup.select("div.g")[:4]:
             title_el = g.select_one("h3")
             link_el = g.select_one("a")
             snippet_el = g.select_one("div.VwiC3b, div.IsZvec")
-            
+
             if title_el and link_el:
                 title = title_el.get_text(strip=True)
                 url = link_el.get("href", "")
-                snippet = snippet_el.get_text(strip=True) if snippet_el else "No snippet available."
-                
+                snippet = snippet_el.get_text(
+                    strip=True) if snippet_el else "No snippet available."
+
                 if url.startswith("http"):
-                    results.append(f"Title: {title}\nURL: {url}\nSnippet: {snippet}")
-        
+                    results.append(
+                        f"Title: {title}\nURL: {url}\nSnippet: {snippet}")
+
         if not results:
             return "No organic Google results found or query was blocked by CAPTCHA."
-            
+
         return "\n\n---\n\n".join(results)
 
     except Exception as e:
         return f"Playwright Google search failed: {e}"
-        
+
     finally:
         # Always close the context to free memory/tabs, leaving the main browser active
         if context:
@@ -266,8 +268,16 @@ prompt = ChatPromptTemplate.from_messages(
 
 ### Tool Selection Rules:
 
-1. **Wikipedia (`wikipedia_search`)**:
-   - Primary tool for general encyclopedia knowledge, historical events, biographies, geography, and overview concepts.
+1. **Google Search (`google_playwright_search`)**:
+   - Primary tool for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
+   - recent news
+   - websites
+   - current events
+   - programming questions
+   - quick web searches
+
+2. **Wikipedia (`wikipedia_search`)**:
+   - Primary tool for encyclopedia knowledge, historical events, biographies, geography, and foundational concepts.
    - general knowledge
    - history
    - biographies
@@ -276,17 +286,17 @@ prompt = ChatPromptTemplate.from_messages(
    - countries
    - encyclopedia information
 
-2. **ArXiv (`arxiv_search`)**:
-   - Use exclusively for academic pre-prints, computer science, physics, mathematics, and artificial intelligence research papers.
+3. **ArXiv (`arxiv_search`)**:
+   - Use exclusively for academic pre-prints in AI, ML, Computer Science, Physics, and Mathematics research papers.
    - Artificial Intelligence
    - Machine Learning
    - Computer Science
    - Mathematics
    - Physics
    - scientific papers
-           
-3. **PubMed (`pubmed_search`)**:
-   - Use for biomedical, clinical, medical, healthcare, pharmacology, and life sciences literature.
+
+4. **PubMed (`pubmed_search`)**:
+   - Use for medical, healthcare, biomedical, and clinical research literature.
    - medicine
    - diseases
    - healthcare
@@ -294,28 +304,20 @@ prompt = ChatPromptTemplate.from_messages(
    - clinical research
    - biomedical literature
 
-4. **DuckDuckGo (`duckduckgo_search`)**:
-   - Use for quick real-time web searches, general news, or recent developments.
+5. **DuckDuckGo (`duckduckgo_search`)**:
+   - Secondary fallback web search tool if Google search yields no results or fails.
    - recent news
    - websites
    - current events
    - programming questions
    - quick web searches
 
-5. **Tavily Search (`tavily_search`)**:
+6. **Tavily Search (`tavily_search`)**:
    - Use for complex web retrieval queries requiring deep content summaries from real-time web pages.
    - deep web research
    - comprehensive summaries
    - recent online information
    - multiple web pages
-
-6. **Google Search (`google_playwright_search`)**:
-   - Use for real-time web news, search result titles, snippets, and URLs.
-   - recent news
-   - websites
-   - current events
-   - programming questions
-   - quick web searches
 
 ### General & Formatting Rules:
 
