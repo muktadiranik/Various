@@ -1,6 +1,6 @@
 import os
 import asyncio
-from typing import List, Optional
+from typing import List
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -14,6 +14,9 @@ from fastapi.templating import Jinja2Templates
 import arxiv
 import wikipedia
 
+# Google API Client
+from googleapiclient.discovery import build
+
 # LangChain
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.messages import AIMessage, HumanMessage
@@ -23,59 +26,31 @@ from langchain_ollama import ChatOllama
 from langchain_community.tools import DuckDuckGoSearchRun, PubmedQueryRun
 from langchain_tavily import TavilySearch
 
-# BeautifulSoup
-from bs4 import BeautifulSoup
-
-# Playwright
-from playwright.async_api import async_playwright, Browser, Playwright
-
 wikipedia.set_user_agent("WikipediaChatbot/1.0 (contact@example.com)")
 
 MAX_CHAT_HISTORY = 10
 load_dotenv()
 
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    FastAPI Lifespan Manager:
-    Launches a shared Playwright Chromium browser on startup
-    and closes it when the application shuts down.
-    """
-    global playwright_instance, browser_instance
+    """Clean lifespan manager (Playwright process setup removed)."""
+    print("🚀 Application starting up...")
+    yield
+    print("🛑 Application shutting down...")
 
-    print("🚀 Starting global Playwright browser instance...")
-    playwright_instance = await async_playwright().start()
-    browser_instance = await playwright_instance.chromium.launch(
-        headless=True,
-        args=[
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-blink-features=AutomationControlled",
-            "--disable-dev-shm-usage",  # Helps prevent memory issues in docker/linux
-        ]
-    )
-
-    yield  # Application runs while suspended here
-
-    print("🛑 Closing global Playwright browser instance...")
-    if browser_instance:
-        await browser_instance.close()
-    if playwright_instance:
-        await playwright_instance.stop()
 
 app = FastAPI(
     title="Multi-Source Knowledge Chatbot",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-
-# Global references for Playwright and Browser objects
-playwright_instance: Optional[Playwright] = None
-browser_instance: Optional[Browser] = None
 
 
 class ConnectionManager:
@@ -102,14 +77,44 @@ manager = ConnectionManager()
 # Asynchronous Tools (Non-blocking I/O)
 # -------------------------------------------------------
 
+def _run_google_cse(query: str, num_results: int = 4) -> str:
+    if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+        return "Google Search API Key or CSE ID missing from environment variables."
+
+    try:
+        service = build("customsearch", "v1", developerKey=GOOGLE_API_KEY)
+        res = service.cse().list(q=query, cx=GOOGLE_CSE_ID, num=num_results).execute()
+
+        items = res.get("items", [])
+        if not items:
+            return "No search results found."
+
+        formatted_results = []
+        for item in items:
+            title = item.get("title", "No Title")
+            snippet = item.get("snippet", "No Snippet")
+            link = item.get("link", "")
+            formatted_results.append(
+                f"Title: {title}\nURL: {link}\nSnippet: {snippet}")
+
+        return "\n\n---\n\n".join(formatted_results)
+    except Exception as e:
+        return f"Google CSE Search failed: {e}"
+
+
+@tool
+async def google_cse_search(query: str) -> str:
+    """
+    Search the internet using Google Custom Search API.
+    Provides live internet search results, recent news, real-time facts, and tech stack documentation.
+    """
+    return await asyncio.to_thread(_run_google_cse, query)
+
+
 @tool
 async def wikipedia_search(query: str) -> str:
-    """
-    Search Wikipedia for general knowledge, historical events,
-    biographies, places, science, and technology.
-    """
+    """Search Wikipedia for general knowledge, historical events, biographies, places, science, and technology."""
     try:
-        # Offload sync wikipedia library call to threadpool
         page = await asyncio.to_thread(wikipedia.page, query, auto_suggest=True)
         return f"Title: {page.title}\n\nSummary: {page.summary[:1000]}\n\nURL: {page.url}"
     except wikipedia.DisambiguationError as e:
@@ -182,74 +187,13 @@ if os.getenv("TAVILY_API_KEY"):
     tavily_tool = tavily_search
 
 
-@tool
-async def google_playwright_search(query: str) -> str:
-    """
-    Search Google using a shared headless browser context.
-    Provides fast, real-time web news and snippets without external API keys.
-    """
-    global browser_instance
-
-    if not browser_instance or not browser_instance.is_connected():
-        return "Browser instance is not available."
-
-    context = None
-    try:
-        # Create an isolated context (like an Incognito window)
-        context = await browser_instance.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800}
-        )
-
-        page = await context.new_page()
-
-        # Block heavy media assets to speed up page load & save bandwidth
-        await page.route(
-            "**/*.{png,jpg,jpeg,gif,svg,css,woff,woff2}",
-            lambda route: route.abort()
-        )
-
-        # Navigate to Google Search
-        search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}&hl=en"
-        await page.goto(search_url, wait_until="domcontentloaded", timeout=8000)
-
-        # Extract page HTML
-        html = await page.content()
-
-        # Parse Google Search Result DOM with BeautifulSoup
-        soup = BeautifulSoup(html, "html.parser")
-        results = []
-
-        for g in soup.select("div.g")[:4]:
-            title_el = g.select_one("h3")
-            link_el = g.select_one("a")
-            snippet_el = g.select_one("div.VwiC3b, div.IsZvec")
-
-            if title_el and link_el:
-                title = title_el.get_text(strip=True)
-                url = link_el.get("href", "")
-                snippet = snippet_el.get_text(
-                    strip=True) if snippet_el else "No snippet available."
-
-                if url.startswith("http"):
-                    results.append(
-                        f"Title: {title}\nURL: {url}\nSnippet: {snippet}")
-
-        if not results:
-            return "No organic Google results found or query was blocked by CAPTCHA."
-
-        return "\n\n---\n\n".join(results)
-
-    except Exception as e:
-        return f"Playwright Google search failed: {e}"
-
-    finally:
-        # Always close the context to free memory/tabs, leaving the main browser active
-        if context:
-            await context.close()
-
-tools = [wikipedia_search, arxiv_search, pubmed_search,
-         duckduckgo_search, google_playwright_search]
+tools = [
+    # google_cse_search,
+    wikipedia_search,
+    arxiv_search,
+    pubmed_search,
+    duckduckgo_search,
+]
 if tavily_tool:
     tools.append(tavily_tool)
 
@@ -264,6 +208,16 @@ llm = ChatOllama(
     num_ctx=8192,
 )
 
+"""
+1. **Google Search (`google_cse_search`)**:
+   - Primary tool for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
+   - recent news
+   - websites
+   - current events
+   - programming questions
+   - quick web searches
+"""
+
 prompt = ChatPromptTemplate.from_messages(
     [
         (
@@ -271,14 +225,6 @@ prompt = ChatPromptTemplate.from_messages(
             """You are an advanced AI research assistant with access to specialized knowledge bases and web search engines.
 
 ### Tool Selection Rules:
-
-1. **Google Search (`google_playwright_search`)**:
-   - Primary tool for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
-   - recent news
-   - websites
-   - current events
-   - programming questions
-   - quick web searches
 
 2. **Wikipedia (`wikipedia_search`)**:
    - Primary tool for encyclopedia knowledge, historical events, biographies, geography, and foundational concepts.
@@ -459,7 +405,7 @@ agent_executor = AgentExecutor(
     verbose=True,
     max_iterations=5,
     handle_parsing_errors=True,
-    return_intermediate_steps=False,
+    return_intermediate_steps=True,
 )
 
 
@@ -519,4 +465,4 @@ async def websocket_chat(websocket: WebSocket):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app="main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app="7:app", host="0.0.0.0", port=8000, reload=True)
