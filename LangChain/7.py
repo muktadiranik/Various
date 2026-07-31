@@ -1,6 +1,7 @@
 import os
 import asyncio
-from typing import List
+from typing import List, Optional
+from contextlib import asynccontextmanager
 
 import uvicorn
 from dotenv import load_dotenv
@@ -22,6 +23,12 @@ from langchain_ollama import ChatOllama
 from langchain_community.tools import DuckDuckGoSearchRun, PubmedQueryRun
 from langchain_tavily import TavilySearch
 
+# BeautifulSoup
+from bs4 import BeautifulSoup
+
+# Playwright
+from playwright.async_api import async_playwright, Browser, Playwright
+
 wikipedia.set_user_agent("WikipediaChatbot/1.0 (contact@example.com)")
 
 MAX_CHAT_HISTORY = 10
@@ -31,6 +38,40 @@ app = FastAPI(title="Multi-Source Knowledge Chatbot", version="1.0.0")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# Global references for Playwright and Browser objects
+playwright_instance: Optional[Playwright] = None
+browser_instance: Optional[Browser] = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPI Lifespan Manager:
+    Launches a shared Playwright Chromium browser on startup
+    and closes it when the application shuts down.
+    """
+    global playwright_instance, browser_instance
+
+    print("🚀 Starting global Playwright browser instance...")
+    playwright_instance = await async_playwright().start()
+    browser_instance = await playwright_instance.chromium.launch(
+        headless=True,
+        args=[
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-blink-features=AutomationControlled",
+            "--disable-dev-shm-usage",  # Helps prevent memory issues in docker/linux
+        ]
+    )
+
+    yield  # Application runs while suspended here
+
+    print("🛑 Closing global Playwright browser instance...")
+    if browser_instance:
+        await browser_instance.close()
+    if playwright_instance:
+        await playwright_instance.stop()
 
 
 class ConnectionManager:
@@ -136,7 +177,73 @@ if os.getenv("TAVILY_API_KEY"):
 
     tavily_tool = tavily_search
 
-tools = [wikipedia_search, arxiv_search, pubmed_search, duckduckgo_search]
+
+@tool
+async def google_playwright_search(query: str) -> str:
+    """
+    Search Google using a shared headless browser context.
+    Provides fast, real-time web news and snippets without external API keys.
+    """
+    global browser_instance
+    
+    if not browser_instance or not browser_instance.is_connected():
+        return "Browser instance is not available."
+
+    context = None
+    try:
+        # Create an isolated context (like an Incognito window)
+        context = await browser_instance.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800}
+        )
+        
+        page = await context.new_page()
+        
+        # Block heavy media assets to speed up page load & save bandwidth
+        await page.route(
+            "**/*.{png,jpg,jpeg,gif,svg,css,woff,woff2}", 
+            lambda route: route.abort()
+        )
+        
+        # Navigate to Google Search
+        search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}&hl=en"
+        await page.goto(search_url, wait_until="domcontentloaded", timeout=8000)
+        
+        # Extract page HTML
+        html = await page.content()
+        
+        # Parse Google Search Result DOM with BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        results = []
+        
+        for g in soup.select("div.g")[:4]:
+            title_el = g.select_one("h3")
+            link_el = g.select_one("a")
+            snippet_el = g.select_one("div.VwiC3b, div.IsZvec")
+            
+            if title_el and link_el:
+                title = title_el.get_text(strip=True)
+                url = link_el.get("href", "")
+                snippet = snippet_el.get_text(strip=True) if snippet_el else "No snippet available."
+                
+                if url.startswith("http"):
+                    results.append(f"Title: {title}\nURL: {url}\nSnippet: {snippet}")
+        
+        if not results:
+            return "No organic Google results found or query was blocked by CAPTCHA."
+            
+        return "\n\n---\n\n".join(results)
+
+    except Exception as e:
+        return f"Playwright Google search failed: {e}"
+        
+    finally:
+        # Always close the context to free memory/tabs, leaving the main browser active
+        if context:
+            await context.close()
+
+tools = [wikipedia_search, arxiv_search, pubmed_search,
+         duckduckgo_search, google_playwright_search]
 if tavily_tool:
     tools.append(tavily_tool)
 
@@ -201,6 +308,14 @@ prompt = ChatPromptTemplate.from_messages(
    - comprehensive summaries
    - recent online information
    - multiple web pages
+
+6. **Google Search (`google_playwright_search`)**:
+   - Use for real-time web news, search result titles, snippets, and URLs.
+   - recent news
+   - websites
+   - current events
+   - programming questions
+   - quick web searches
 
 ### General & Formatting Rules:
 
