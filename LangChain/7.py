@@ -259,7 +259,7 @@ LLM & Prompt
 """
 
 
-USE_OLLAMA = True
+USE_OLLAMA = os.getenv("USE_OLLAMA")
 
 if USE_OLLAMA:
     llm = ChatOllama(
@@ -269,7 +269,7 @@ if USE_OLLAMA:
     )
 else:
     llm = ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         temperature=0,
         groq_api_key=os.getenv("GROQ_API_KEY"),
     )
@@ -538,4 +538,4 @@ async def websocket_chat(websocket: WebSocket):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app=app, host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run(app=app, host="0.0.0.0", port=3000, reload=False)
