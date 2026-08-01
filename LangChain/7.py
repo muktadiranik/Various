@@ -1,9 +1,11 @@
 import os
 import asyncio
-from typing import List
+from typing import List, Dict
 from contextlib import asynccontextmanager
+import xml.etree.ElementTree as ET
 
 import uvicorn
+import httpx
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -13,9 +15,6 @@ from fastapi.templating import Jinja2Templates
 # ArXiv & Wikipedia
 import arxiv
 import wikipedia
-
-# Google API Client
-from googleapiclient.discovery import build
 
 # LangChain
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
@@ -28,11 +27,27 @@ from langchain_tavily import TavilySearch
 
 wikipedia.set_user_agent("WikipediaChatbot/1.0 (contact@example.com)")
 
-MAX_CHAT_HISTORY = 10
 load_dotenv()
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
+MAX_CHAT_HISTORY = 10
+
+PREFERRED_WOLFRAM_PODS: List[str] = [
+    "Input interpretation",
+    "Input",
+    "Result",
+    "Exact result",
+    "Decimal approximation",
+    "Solution",
+    "Definite integral",
+    "Indefinite integral",
+    "Derivative",
+    "Limit",
+    "Value",
+    "Conversions",
+    "Scientific notation",
+    "Expanded form",
+    "Alternate form",
+]
 
 
 @asynccontextmanager
@@ -49,7 +64,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
 templates = Jinja2Templates(directory="templates")
 
 
@@ -73,42 +91,83 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-# -------------------------------------------------------
-# Asynchronous Tools (Non-blocking I/O)
-# -------------------------------------------------------
-
-def _run_google_cse(query: str, num_results: int = 4) -> str:
-    if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
-        return "Google Search API Key or CSE ID missing from environment variables."
-
-    try:
-        service = build("customsearch", "v1", developerKey=GOOGLE_API_KEY)
-        res = service.cse().list(q=query, cx=GOOGLE_CSE_ID, num=num_results).execute()
-
-        items = res.get("items", [])
-        if not items:
-            return "No search results found."
-
-        formatted_results = []
-        for item in items:
-            title = item.get("title", "No Title")
-            snippet = item.get("snippet", "No Snippet")
-            link = item.get("link", "")
-            formatted_results.append(
-                f"Title: {title}\nURL: {link}\nSnippet: {snippet}")
-
-        return "\n\n---\n\n".join(formatted_results)
-    except Exception as e:
-        return f"Google CSE Search failed: {e}"
+"""
+Asynchronous Tools (Non-blocking I/O)
+"""
 
 
 @tool
-async def google_cse_search(query: str) -> str:
+async def wolfram_alpha_search(query: str) -> str:
     """
-    Search the internet using Google Custom Search API.
-    Provides live internet search results, recent news, real-time facts, and tech stack documentation.
+    Search Wolfram Alpha for computational knowledge, mathematics, calculus, physics, chemistry, engineering, and unit conversions.
     """
-    return await asyncio.to_thread(_run_google_cse, query)
+    appid = os.getenv("WOLFRAM_ALPHA_APPID")
+
+    if not appid:
+        return (
+            "Wolfram Alpha AppID is not configured. "
+            "Please set WOLFRAM_ALPHA_APPID in your environment variables."
+        )
+
+    params = {
+        "appid": appid,
+        "input": query,
+        "format": "plaintext",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                "https://api.wolframalpha.com/v2/query", params=params
+            )
+            response.raise_for_status()
+
+        root = ET.fromstring(response.text)
+
+        if root.attrib.get("error") == "true":
+            return "Wolfram Alpha returned an error processing the query."
+
+        if root.attrib.get("success") != "true":
+            return f"No computational results found for '{query}'."
+
+        pod_map: Dict[str, List[str]] = {}
+        for pod in root.findall("pod"):
+            title = pod.attrib.get("title", "").strip()
+            values = [
+                subpod.findtext("plaintext").strip()
+                for subpod in pod.findall("subpod")
+                if subpod.findtext("plaintext") and subpod.findtext("plaintext").strip()
+            ]
+            if values and title:
+                pod_map[title] = values
+
+        if not pod_map:
+            return "No plaintext results returned by Wolfram Alpha."
+
+        collected: List[str] = []
+
+        for preferred in PREFERRED_WOLFRAM_PODS:
+            if preferred in pod_map:
+                collected.append(f"### {preferred}\n" +
+                                 "\n".join(pod_map[preferred]))
+                del pod_map[preferred]
+
+        if not collected:
+            for title, values in pod_map.items():
+                collected.append(f"### {title}\n" + "\n".join(values))
+
+        return "\n\n---\n\n".join(collected)
+
+    except httpx.TimeoutException:
+        return "Wolfram Alpha request timed out."
+    except httpx.HTTPStatusError as e:
+        return f"Wolfram Alpha HTTP error: {e.response.status_code}"
+    except httpx.RequestError as e:
+        return f"Wolfram Alpha network request failed: {e}"
+    except ET.ParseError:
+        return "Failed to parse the XML response from Wolfram Alpha."
+    except Exception as e:
+        return f"Wolfram Alpha search failed: {e}"
 
 
 @tool
@@ -172,35 +231,32 @@ async def duckduckgo_search(query: str) -> str:
         return f"DuckDuckGo search failed: {e}"
 
 
-tavily_tool = None
-if os.getenv("TAVILY_API_KEY"):
-    tavily_runner = TavilySearch(max_results=3, search_depth="basic")
+tavily_runner = TavilySearch(max_results=3, search_depth="basic")
 
-    @tool
-    async def tavily_search(query: str) -> str:
-        """Search the internet using Tavily for deep web research and real-time summaries."""
-        try:
-            return await asyncio.to_thread(tavily_runner.run, query)
-        except Exception as e:
-            return f"Tavily search failed: {e}"
 
-    tavily_tool = tavily_search
+@tool
+async def tavily_search(query: str) -> str:
+    """Search the internet using Tavily for deep web research and real-time summaries."""
+    try:
+        return await asyncio.to_thread(tavily_runner.run, query)
+    except Exception as e:
+        return f"Tavily search failed: {e}"
 
 
 tools = [
-    # google_cse_search,
+    wolfram_alpha_search,
     wikipedia_search,
     arxiv_search,
     pubmed_search,
     duckduckgo_search,
+    tavily_search
 ]
-if tavily_tool:
-    tools.append(tavily_tool)
 
 
-# -------------------------------------------------------
-# LLM & Prompt
-# -------------------------------------------------------
+"""
+LLM & Prompt
+"""
+
 
 llm = ChatOllama(
     model="llama3.2",
@@ -208,15 +264,6 @@ llm = ChatOllama(
     num_ctx=8192,
 )
 
-"""
-1. **Google Search (`google_cse_search`)**:
-   - Primary tool for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
-   - recent news
-   - websites
-   - current events
-   - programming questions
-   - quick web searches
-"""
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -226,7 +273,23 @@ prompt = ChatPromptTemplate.from_messages(
 
 ### Tool Selection Rules:
 
-1. **Wikipedia (`wikipedia_search`)**:
+1. **Wolfram Alpha (`wolfram_alpha_search`)**:
+   - Primary tool for exact calculations, mathematical equations, physics, chemistry, unit conversions, scientific constants, and exact data metrics.
+   - mathematics
+   - calculus
+   - algebra
+   - differential equations
+   - integrals
+   - derivatives
+   - physics
+   - chemistry
+   - engineering
+   - astronomy
+   - unit conversions
+   - scientific constants
+   - geography statistics
+
+2. **Wikipedia (`wikipedia_search`)**:
    - Primary tool for encyclopedia knowledge, historical events, biographies, geography, and foundational concepts.
    - general knowledge
    - history
@@ -236,7 +299,7 @@ prompt = ChatPromptTemplate.from_messages(
    - countries
    - encyclopedia information
 
-2. **ArXiv (`arxiv_search`)**:
+3. **ArXiv (`arxiv_search`)**:
    - Use exclusively for academic pre-prints in AI, ML, Computer Science, Physics, and Mathematics research papers.
    - Artificial Intelligence
    - Machine Learning
@@ -245,7 +308,7 @@ prompt = ChatPromptTemplate.from_messages(
    - Physics
    - scientific papers
 
-3. **PubMed (`pubmed_search`)**:
+4. **PubMed (`pubmed_search`)**:
    - Use for medical, healthcare, biomedical, and clinical research literature.
    - medicine
    - diseases
@@ -254,7 +317,7 @@ prompt = ChatPromptTemplate.from_messages(
    - clinical research
    - biomedical literature
 
-4. **DuckDuckGo (`duckduckgo_search`)**:
+5. **DuckDuckGo (`duckduckgo_search`)**:
    - Use for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
    - recent news
    - websites
@@ -262,7 +325,7 @@ prompt = ChatPromptTemplate.from_messages(
    - programming questions
    - quick web searches
 
-5. **Tavily Search (`tavily_search`)**:
+6. **Tavily Search (`tavily_search`)**:
    - Use for complex web retrieval queries requiring deep content summaries from real-time web pages.
    - deep web research
    - comprehensive summaries
@@ -465,4 +528,4 @@ async def websocket_chat(websocket: WebSocket):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app="7:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app=app, host="0.0.0.0", port=8000, reload=False)
