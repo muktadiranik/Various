@@ -22,6 +22,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 from langchain_community.tools import DuckDuckGoSearchRun, PubmedQueryRun
 from langchain_tavily import TavilySearch
 
@@ -258,11 +259,20 @@ LLM & Prompt
 """
 
 
-llm = ChatOllama(
-    model="llama3.2",
-    temperature=0,
-    num_ctx=8192,
-)
+USE_OLLAMA = True
+
+if USE_OLLAMA:
+    llm = ChatOllama(
+        model="llama3.2",
+        temperature=0,
+        num_ctx=8192,
+    )
+else:
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        temperature=0,
+        groq_api_key=os.getenv("GROQ_API_KEY"),
+    )
 
 
 prompt = ChatPromptTemplate.from_messages(
