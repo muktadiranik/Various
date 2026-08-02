@@ -21,7 +21,7 @@ from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
-from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 from langchain_community.tools import DuckDuckGoSearchRun, PubmedQueryRun
 from langchain_tavily import TavilySearch
 
@@ -258,10 +258,10 @@ LLM & Prompt
 """
 
 
-llm = ChatOllama(
-    model="llama3.2",
+llm = ChatGroq(
+    model="llama-3.1-8b-instant",
     temperature=0,
-    num_ctx=8192,
+    groq_api_key=os.getenv("GROQ_API_KEY"),
 )
 
 
