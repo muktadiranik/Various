@@ -259,7 +259,7 @@ LLM & Prompt
 """
 
 
-USE_OLLAMA = os.getenv("USE_OLLAMA")
+USE_OLLAMA = os.getenv("USE_OLLAMA", "false").lower() == "true"
 
 if USE_OLLAMA:
     llm = ChatOllama(
