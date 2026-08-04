@@ -142,7 +142,7 @@
 
       const renderer = new marked.Renderer();
 
-      // Syntax Highlighted Code Block Renderer
+      // Syntax Highlighted Code Block Renderer with isolated horizontal scroll
       renderer.code = function (code, language) {
         let rawCode = typeof code === "object" ? code.text : code;
         let lang = typeof code === "object" ? code.lang : language;
@@ -160,12 +160,12 @@
         }
 
         return `
-          <div class="code-block-wrapper my-4 rounded-xl overflow-hidden border border-[#282a2c] bg-[#18181a]">
+          <div class="code-block-wrapper my-4 rounded-xl overflow-hidden border border-[#282a2c] bg-[#18181a] max-w-full">
             <div class="code-block-header flex items-center justify-between px-4 py-2 bg-[#212123] text-xs text-zinc-400 font-mono border-b border-[#282a2c]">
               <span>${escapeHtml(lang)}</span>
               <button onclick="copyCode(this)" class="hover:text-white transition-colors cursor-pointer focus:outline-none">Copy</button>
             </div>
-            <pre class="p-4 overflow-x-auto text-sm font-mono leading-relaxed"><code class="hljs language-${escapeHtml(lang)}">${highlightedCode}</code></pre>
+            <pre class="p-4 overflow-x-auto text-sm font-mono leading-relaxed custom-scrollbar"><code class="hljs language-${escapeHtml(lang)}">${highlightedCode}</code></pre>
           </div>
         `;
       };
@@ -173,7 +173,7 @@
       // Inline Code Snippet Styling (`code`)
       renderer.codespan = function (code) {
         let text = typeof code === "object" ? code.text : code;
-        return `<code class="bg-[#282a2c] text-[#a8c7fa] px-1.5 py-0.5 rounded text-sm font-mono">${escapeHtml(text)}</code>`;
+        return `<code class="bg-[#282a2c] text-[#a8c7fa] px-1.5 py-0.5 rounded text-sm font-mono break-words">${escapeHtml(text)}</code>`;
       };
 
       marked.setOptions({
@@ -225,8 +225,9 @@
         const messages = document.getElementById("messages");
         const isUser = type === "user";
 
+        // min-w-0 added to row to prevent Flexbox auto-min-width overflow
         const messageRow = document.createElement("div");
-        messageRow.className = `flex gap-4 text-sm sm:text-base animate-message-slide w-full ${isUser ? "justify-end" : "justify-start"}`;
+        messageRow.className = `flex gap-4 text-sm sm:text-base animate-message-slide w-full min-w-0 ${isUser ? "justify-end" : "justify-start"}`;
 
         if (isUser) {
           const bubble = document.createElement("div");
@@ -247,8 +248,10 @@
             </svg>
           `;
 
+          // min-w-0, whitespace-normal, overflow-hidden applied to ensure prose wraps normally while code blocks handle their own horizontal scroll
           const bubble = document.createElement("div");
-          bubble.className = "flex-1 max-w-[calc(100%-2.5rem)] text-[#e3e2e6] prose prose-invert max-w-none break-words prose-p:leading-relaxed prose-pre:m-0";
+          bubble.className =
+            "flex-1 min-w-0 max-w-full text-[#e3e2e6] prose prose-invert max-w-none break-words whitespace-normal overflow-hidden prose-p:leading-relaxed prose-pre:m-0";
 
           let formatted = text.replace(/^AI:\s*/, "").trim();
           bubble.innerHTML = DOMPurify.sanitize(marked.parse(formatted));
