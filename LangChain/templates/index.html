@@ -119,15 +119,27 @@
       const textarea = document.getElementById("messageText");
       const sendBtn = document.getElementById("sendBtn");
 
+      // Utility function to escape HTML special characters inside code blocks
+      function escapeHtml(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+      }
+
       const renderer = new marked.Renderer();
+
       renderer.code = function (code, language) {
-        const lang = language || "code";
+        // Marked v12 passes either an object { text, lang } or positional args
+        let rawCode = typeof code === "object" ? code.text : code;
+        let lang = typeof code === "object" ? code.lang : language;
+
+        lang = lang || "code";
+        const safeCode = escapeHtml(rawCode || "");
+
         return `
           <div class="code-block-wrapper my-4 rounded-xl overflow-hidden border border-[#282a2c] bg-[#0e0e0e]">
             <div class="code-block-header flex items-center justify-between px-4 py-2 bg-[#1e1e1f] text-xs text-zinc-400 font-mono border-b border-[#282a2c]">
-              <span>${lang}</span>
+              <span>${escapeHtml(lang)}</span>
             </div>
-            <pre class="p-4 overflow-x-auto text-sm text-[#e3e2e6] font-mono leading-relaxed"><code>${code}</code></pre>
+            <pre class="p-4 overflow-x-auto text-sm text-[#e3e2e6] font-mono leading-relaxed"><code>${safeCode}</code></pre>
           </div>
         `;
       };
