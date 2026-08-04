@@ -35,6 +35,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
     <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
   </head>
 
@@ -119,29 +122,58 @@
       const textarea = document.getElementById("messageText");
       const sendBtn = document.getElementById("sendBtn");
 
-      // Utility function to escape HTML special characters inside code blocks
+      // HTML Escape Helper
       function escapeHtml(str) {
         return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
       }
 
+      // Copy Code Block Handler
+      function copyCode(button) {
+        const pre = button.parentElement.nextElementSibling;
+        const codeText = pre.innerText;
+
+        navigator.clipboard.writeText(codeText).then(() => {
+          button.innerText = "Copied!";
+          setTimeout(() => {
+            button.innerText = "Copy";
+          }, 2000);
+        });
+      }
+
       const renderer = new marked.Renderer();
 
+      // Syntax Highlighted Code Block Renderer
       renderer.code = function (code, language) {
-        // Marked v12 passes either an object { text, lang } or positional args
         let rawCode = typeof code === "object" ? code.text : code;
         let lang = typeof code === "object" ? code.lang : language;
-
         lang = lang || "code";
-        const safeCode = escapeHtml(rawCode || "");
+
+        let highlightedCode;
+        if (hljs.getLanguage(lang)) {
+          try {
+            highlightedCode = hljs.highlight(rawCode, { language: lang }).value;
+          } catch (_) {
+            highlightedCode = escapeHtml(rawCode);
+          }
+        } else {
+          highlightedCode = escapeHtml(rawCode);
+        }
 
         return `
-          <div class="code-block-wrapper my-4 rounded-xl overflow-hidden border border-[#282a2c] bg-[#0e0e0e]">
-            <div class="code-block-header flex items-center justify-between px-4 py-2 bg-[#1e1e1f] text-xs text-zinc-400 font-mono border-b border-[#282a2c]">
+          <div class="code-block-wrapper my-4 rounded-xl overflow-hidden border border-[#282a2c] bg-[#18181a]">
+            <div class="code-block-header flex items-center justify-between px-4 py-2 bg-[#212123] text-xs text-zinc-400 font-mono border-b border-[#282a2c]">
               <span>${escapeHtml(lang)}</span>
+              <button onclick="copyCode(this)" class="hover:text-white transition-colors cursor-pointer focus:outline-none">Copy</button>
             </div>
-            <pre class="p-4 overflow-x-auto text-sm text-[#e3e2e6] font-mono leading-relaxed"><code>${safeCode}</code></pre>
+            <pre class="p-4 overflow-x-auto text-sm font-mono leading-relaxed"><code class="hljs language-${escapeHtml(lang)}">${highlightedCode}</code></pre>
           </div>
         `;
+      };
+
+      // Inline Code Snippet Styling (`code`)
+      renderer.codespan = function (code) {
+        let text = typeof code === "object" ? code.text : code;
+        return `<code class="bg-[#282a2c] text-[#a8c7fa] px-1.5 py-0.5 rounded text-sm font-mono">${escapeHtml(text)}</code>`;
       };
 
       marked.setOptions({
@@ -216,7 +248,7 @@
           `;
 
           const bubble = document.createElement("div");
-          bubble.className = "flex-1 max-w-[calc(100%-2.5rem)] text-[#e3e2e6] markdown-body break-words";
+          bubble.className = "flex-1 max-w-[calc(100%-2.5rem)] text-[#e3e2e6] prose prose-invert max-w-none break-words prose-p:leading-relaxed prose-pre:m-0";
 
           let formatted = text.replace(/^AI:\s*/, "").trim();
           bubble.innerHTML = DOMPurify.sanitize(marked.parse(formatted));
