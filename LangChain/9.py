@@ -16,6 +16,9 @@ from fastapi.templating import Jinja2Templates
 import arxiv
 import wikipedia
 
+# Ollama
+import ollama
+
 # LangChain
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.messages import AIMessage, HumanMessage
@@ -223,6 +226,43 @@ duckduckgo_runner = DuckDuckGoSearchRun()
 
 
 @tool
+async def ollama_web_search(query: str) -> str:
+    """
+    Search the web using Ollama's native web search feature for real-time information, 
+    current events, and online articles.
+    """
+    api_key = os.getenv("OLLAMA_API_KEY")
+    if not api_key:
+        return "OLLAMA_API_KEY is missing from environment variables."
+
+    try:
+        def _search():
+            client = ollama.Client(
+                host="https://ollama.com",
+                headers={"Authorization": f"Bearer {api_key}"}
+            )
+            return client.web_search(query)
+
+        res = await asyncio.to_thread(_search)
+
+        # Format results into readable text if returns dict or object list
+        if isinstance(res, dict) and "results" in res:
+            formatted = []
+            for item in res["results"]:
+                title = item.get("title", "No Title")
+                snippet = item.get("snippet", "")
+                url = item.get("url", "")
+                formatted.append(
+                    f"Title: {title}\nSummary: {snippet}\nURL: {url}")
+            return "\n\n---\n\n".join(formatted) if formatted else "No results found."
+
+        return str(res)
+
+    except Exception as e:
+        return f"Ollama web search failed: {e}"
+
+
+@tool
 async def duckduckgo_search(query: str) -> str:
     """Search the web for real-time news, current events, programming, or quick factual searches."""
     try:
@@ -248,8 +288,9 @@ tools = [
     wikipedia_search,
     arxiv_search,
     pubmed_search,
+    ollama_web_search,
     duckduckgo_search,
-    tavily_search
+    tavily_search,
 ]
 
 
@@ -325,7 +366,16 @@ prompt = ChatPromptTemplate.from_messages(
    - clinical research
    - biomedical literature
 
-5. **DuckDuckGo (`duckduckgo_search`)**:
+5. **Ollama Web Search (`ollama_web_search`)**:
+   - Primary tool for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
+   - Use for quick real-time web lookups, current news, and general online references.
+   - recent news
+   - real-time information
+   - current events
+   - online articles
+   - quick web searches
+
+6. **DuckDuckGo (`duckduckgo_search`)**:
    - Use for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
    - recent news
    - websites
@@ -333,12 +383,19 @@ prompt = ChatPromptTemplate.from_messages(
    - programming questions
    - quick web searches
 
-6. **Tavily Search (`tavily_search`)**:
+7. **Tavily Search (`tavily_search`)**:
    - Use for complex web retrieval queries requiring deep content summaries from real-time web pages.
    - deep web research
    - comprehensive summaries
    - recent online information
    - multiple web pages
+
+7. **Ollama Web Search (`ollama_web_search`)**:
+   - Primary tool for running searches directly through Ollama's web search client.
+   - Use for quick real-time web lookups, current news, and general online references.
+   - real-time information
+   - current events
+   - online articles
 
 ### General & Formatting Rules:
 
