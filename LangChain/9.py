@@ -43,6 +43,9 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, func, create_eng
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 
+load_dotenv()
+
+
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://postgres:root@localhost:5432/knowledge_database")
 
@@ -98,7 +101,6 @@ class ConversationDetailSchema(BaseModel):
 
 wikipedia.set_user_agent("KnowledgeChatbot/1.0 (contact@yourdomain.com)")
 
-load_dotenv()
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 FLUSH_INTERVAL = 5  # Flush to Postgres every 5 message interactions
