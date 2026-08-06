@@ -4,7 +4,7 @@ import asyncio
 
 from datetime import datetime, timezone
 from typing import List, Optional, Dict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from contextlib import asynccontextmanager
 
@@ -75,17 +75,14 @@ class ChatLog(Base):
 Base.metadata.create_all(bind=engine)
 
 
-# Schemas
-
-
+# Base Schemas
 class ChatMessageSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     role: str = Field(..., description="Role of the speaker: 'human' or 'ai'")
     content: str
     timestamp: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 
 class ConversationSummarySchema(BaseModel):
@@ -97,6 +94,31 @@ class ConversationSummarySchema(BaseModel):
 class ConversationDetailSchema(BaseModel):
     session_id: str
     messages: List[ChatMessageSchema]
+
+
+# Pagination Schemas
+class PaginatedResponseMeta(BaseModel):
+    total_items: int
+    limit: int
+    offset: int
+    has_next: bool
+    has_previous: bool
+
+
+class PaginatedConversationSummary(BaseModel):
+    meta: PaginatedResponseMeta
+    data: List[ConversationSummarySchema]
+
+
+class PaginatedConversationDetail(BaseModel):
+    meta: PaginatedResponseMeta
+    session_id: str
+    messages: List[ChatMessageSchema]
+
+
+class PaginatedGroupedConversations(BaseModel):
+    meta: PaginatedResponseMeta
+    data: dict[str, List[ChatMessageSchema]]
 
 
 wikipedia.set_user_agent("KnowledgeChatbot/1.0 (contact@yourdomain.com)")
@@ -534,27 +556,43 @@ async def home(request: Request):
 
 @app.get(
     "/conversations",
-    response_model=List[ConversationSummarySchema],
+    response_model=PaginatedConversationSummary,
     tags=["Conversations"],
-    summary="Get summary of all conversation sessions"
+    summary="Get paginated summary of all conversation sessions"
 )
-async def get_all_conversations(database: Session = Depends(get_database)):
+async def get_all_conversations(
+    limit: int = Query(
+        20, ge=1, le=100, description="Number of sessions per page"),
+    offset: int = Query(0, ge=0, description="Number of sessions to skip"),
+    database: Session = Depends(get_database)
+):
     """
-    Returns a list of all session IDs with message counts and last update timestamps.
+    Returns a paginated list of all session IDs with message counts and last update timestamps.
     """
     try:
-        results = (
+        # Base query for session summaries
+        summary_query = (
             database.query(
                 ChatLog.session_id,
                 func.count(ChatLog.id).label("message_count"),
                 func.max(ChatLog.timestamp).label("last_updated")
             )
             .group_by(ChatLog.session_id)
+        )
+
+        # Count total unique sessions for pagination metadata
+        total_items = summary_query.count()
+
+        # Apply ordering and limit/offset pagination
+        results = (
+            summary_query
             .order_by(func.max(ChatLog.timestamp).desc())
+            .offset(offset)
+            .limit(limit)
             .all()
         )
 
-        return [
+        items = [
             ConversationSummarySchema(
                 session_id=row.session_id,
                 message_count=row.message_count,
@@ -562,6 +600,18 @@ async def get_all_conversations(database: Session = Depends(get_database)):
             )
             for row in results
         ]
+
+        return PaginatedConversationSummary(
+            meta=PaginatedResponseMeta(
+                total_items=total_items,
+                limit=limit,
+                offset=offset,
+                has_next=(offset + limit) < total_items,
+                has_previous=offset > 0,
+            ),
+            data=items
+        )
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -571,34 +621,56 @@ async def get_all_conversations(database: Session = Depends(get_database)):
 
 @app.get(
     "/conversations/{session_id}",
-    response_model=ConversationDetailSchema,
+    response_model=PaginatedConversationDetail,
     tags=["Conversations"],
-    summary="Get full conversation transcript by Session ID"
+    summary="Get paginated chat messages for a specific Session ID"
 )
-async def get_conversation_by_id(session_id: str, database: Session = Depends(get_database)):
+async def get_conversation_by_id(
+    session_id: str,
+    limit: int = Query(
+        50, ge=1, le=200, description="Number of messages per page"),
+    offset: int = Query(0, ge=0, description="Number of messages to skip"),
+    database: Session = Depends(get_database)
+):
     """
-    Fetch all chat messages belonging to a specific session ID.
+    Fetch paginated chat messages belonging to a specific session ID.
     """
     try:
-        logs = (
-            database.query(ChatLog)
-            .filter(ChatLog.session_id == session_id)
-            .order_by(ChatLog.timestamp.asc())
-            .all()
-        )
+        base_query = database.query(ChatLog).filter(
+            ChatLog.session_id == session_id)
 
-        if not logs:
+        # Get total messages count for this session
+        total_items = base_query.count()
+
+        if total_items == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Conversation with session_id '{session_id}' not found."
             )
 
+        # Apply pagination (oldest to newest message order)
+        logs = (
+            base_query
+            .order_by(ChatLog.timestamp.asc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
         messages = [ChatMessageSchema.model_validate(log) for log in logs]
 
-        return ConversationDetailSchema(
+        return PaginatedConversationDetail(
+            meta=PaginatedResponseMeta(
+                total_items=total_items,
+                limit=limit,
+                offset=offset,
+                has_next=(offset + limit) < total_items,
+                has_previous=offset > 0,
+            ),
             session_id=session_id,
             messages=messages
         )
+
     except HTTPException as http_err:
         raise http_err
     except Exception as e:
@@ -610,30 +682,69 @@ async def get_conversation_by_id(session_id: str, database: Session = Depends(ge
 
 @app.get(
     "/conversations/all/grouped",
-    response_model=Dict[str, List[ChatMessageSchema]],
+    response_model=PaginatedGroupedConversations,
     tags=["Conversations"],
-    summary="Get all raw conversations grouped by Session ID"
+    summary="Get paginated sessions with all their raw conversations"
 )
-async def get_all_conversations_full(database: Session = Depends(get_database)):
+async def get_all_conversations_full(
+    limit: int = Query(
+        10, ge=1, le=50, description="Number of sessions to return"),
+    offset: int = Query(0, ge=0, description="Number of sessions to skip"),
+    database: Session = Depends(get_database)
+):
     """
-    Fetch all messages across all sessions grouped by session_id.
+    Paginate sessions by session_id and return all messages for those paginated sessions.
     """
     try:
-        logs = database.query(ChatLog).order_by(
-            ChatLog.session_id, ChatLog.timestamp.asc()).all()
+        # Step 1: Distinct paginated session_ids
+        distinct_sessions_query = database.query(ChatLog.session_id).distinct()
+        total_items = distinct_sessions_query.count()
 
-        grouped: Dict[str, List[ChatMessageSchema]] = {}
+        paginated_session_ids = [
+            row[0] for row in distinct_sessions_query.offset(offset).limit(limit).all()
+        ]
+
+        if not paginated_session_ids:
+            return PaginatedGroupedConversations(
+                meta=PaginatedResponseMeta(
+                    total_items=total_items,
+                    limit=limit,
+                    offset=offset,
+                    has_next=False,
+                    has_previous=offset > 0,
+                ),
+                data={}
+            )
+
+        # Step 2: Fetch all messages belonging strictly to the paginated sessions
+        logs = (
+            database.query(ChatLog)
+            .filter(ChatLog.session_id.in_(paginated_session_ids))
+            .order_by(ChatLog.session_id, ChatLog.timestamp.asc())
+            .all()
+        )
+
+        grouped: Dict[str, List[ChatMessageSchema]] = {
+            sid: [] for sid in paginated_session_ids}
         for log in logs:
-            if log.session_id not in grouped:
-                grouped[log.session_id] = []
             grouped[log.session_id].append(
                 ChatMessageSchema.model_validate(log))
 
-        return grouped
+        return PaginatedGroupedConversations(
+            meta=PaginatedResponseMeta(
+                total_items=total_items,
+                limit=limit,
+                offset=offset,
+                has_next=(offset + limit) < total_items,
+                has_previous=offset > 0,
+            ),
+            data=grouped
+        )
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch all conversations: {str(e)}"
+            detail=f"Failed to fetch grouped conversations: {str(e)}"
         )
 
 
