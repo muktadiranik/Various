@@ -1,16 +1,23 @@
+
 import os
 import asyncio
-from typing import List, Dict
+
+from datetime import datetime, timezone
+from typing import List, Optional, Dict
+from pydantic import BaseModel, Field
+
 from contextlib import asynccontextmanager
+
 import xml.etree.ElementTree as ET
 
 import uvicorn
 import httpx
 from dotenv import load_dotenv
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi import Depends, HTTPException, status
 
 # ArXiv & Wikipedia
 import arxiv
@@ -27,12 +34,77 @@ from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from langchain_community.tools import DuckDuckGoSearchRun, PubmedQueryRun
 from langchain_tavily import TavilySearch
+from langchain_community.chat_message_histories import RedisChatMessageHistory
+
+import redis
+import os
+
+from sqlalchemy import Column, Integer, String, Text, DateTime, func, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
+
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://postgres:root@localhost:5432/knowledge_database")
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+
+def get_database():
+    database = SessionLocal()
+    try:
+        yield database
+    finally:
+        database.close()
+
+
+class ChatLog(Base):
+    __tablename__ = "chat_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(255), index=True, nullable=False)
+    role = Column(String(50), nullable=False)  # 'human' or 'ai'
+    content = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+Base.metadata.create_all(bind=engine)
+
+
+# Schemas
+
+
+class ChatMessageSchema(BaseModel):
+    id: int
+    role: str = Field(..., description="Role of the speaker: 'human' or 'ai'")
+    content: str
+    timestamp: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationSummarySchema(BaseModel):
+    session_id: str
+    message_count: int
+    last_updated: Optional[datetime] = None
+
+
+class ConversationDetailSchema(BaseModel):
+    session_id: str
+    messages: List[ChatMessageSchema]
+
 
 wikipedia.set_user_agent("KnowledgeChatbot/1.0 (contact@yourdomain.com)")
 
 load_dotenv()
 
-MAX_CHAT_HISTORY = 10
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+FLUSH_INTERVAL = 5  # Flush to Postgres every 5 message interactions
+
+# Redis Client for tracking counter metadata
+redis_client = redis.Redis.from_url(REDIS_URL)
 
 PREFERRED_WOLFRAM_PODS: List[str] = [
     "Input interpretation",
@@ -55,7 +127,6 @@ PREFERRED_WOLFRAM_PODS: List[str] = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Clean lifespan manager (Playwright process setup removed)."""
     print("🚀 Application starting up...")
     yield
     print("🛑 Application shutting down...")
@@ -67,10 +138,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
 templates = Jinja2Templates(directory="templates")
 
 
@@ -93,7 +161,6 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-
 """
 Asynchronous Tools (Non-blocking I/O)
 """
@@ -101,36 +168,20 @@ Asynchronous Tools (Non-blocking I/O)
 
 @tool
 async def wolfram_alpha_search(query: str) -> str:
-    """
-    Search Wolfram Alpha for computational knowledge, mathematics, calculus, physics, chemistry, engineering, and unit conversions.
-    """
+    """Search Wolfram Alpha for computational knowledge, mathematics, calculus, physics, chemistry, engineering, and unit conversions."""
     appid = os.getenv("WOLFRAM_ALPHA_APPID")
-
     if not appid:
-        return (
-            "Wolfram Alpha AppID is not configured. "
-            "Please set WOLFRAM_ALPHA_APPID in your environment variables."
-        )
+        return "Wolfram Alpha AppID is not configured."
 
-    params = {
-        "appid": appid,
-        "input": query,
-        "format": "plaintext",
-    }
+    params = {"appid": appid, "input": query, "format": "plaintext"}
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                "https://api.wolframalpha.com/v2/query", params=params
-            )
+            response = await client.get("https://api.wolframalpha.com/v2/query", params=params)
             response.raise_for_status()
 
         root = ET.fromstring(response.text)
-
-        if root.attrib.get("error") == "true":
-            return "Wolfram Alpha returned an error processing the query."
-
-        if root.attrib.get("success") != "true":
+        if root.attrib.get("error") == "true" or root.attrib.get("success") != "true":
             return f"No computational results found for '{query}'."
 
         pod_map: Dict[str, List[str]] = {}
@@ -144,11 +195,7 @@ async def wolfram_alpha_search(query: str) -> str:
             if values and title:
                 pod_map[title] = values
 
-        if not pod_map:
-            return "No plaintext results returned by Wolfram Alpha."
-
         collected: List[str] = []
-
         for preferred in PREFERRED_WOLFRAM_PODS:
             if preferred in pod_map:
                 collected.append(f"### {preferred}\n" +
@@ -160,15 +207,6 @@ async def wolfram_alpha_search(query: str) -> str:
                 collected.append(f"### {title}\n" + "\n".join(values))
 
         return "\n\n---\n\n".join(collected)
-
-    except httpx.TimeoutException:
-        return "Wolfram Alpha request timed out."
-    except httpx.HTTPStatusError as e:
-        return f"Wolfram Alpha HTTP error: {e.response.status_code}"
-    except httpx.RequestError as e:
-        return f"Wolfram Alpha network request failed: {e}"
-    except ET.ParseError:
-        return "Failed to parse the XML response from Wolfram Alpha."
     except Exception as e:
         return f"Wolfram Alpha search failed: {e}"
 
@@ -179,10 +217,6 @@ async def wikipedia_search(query: str) -> str:
     try:
         page = await asyncio.to_thread(wikipedia.page, query, auto_suggest=True)
         return f"Title: {page.title}\n\nSummary: {page.summary[:1000]}\n\nURL: {page.url}"
-    except wikipedia.DisambiguationError as e:
-        return f"Multiple matching pages found: {', '.join(e.options[:5])}"
-    except wikipedia.PageError:
-        return "No Wikipedia page found."
     except Exception as e:
         return f"Wikipedia search failed: {e}"
 
@@ -193,16 +227,12 @@ async def arxiv_search(query: str) -> str:
     try:
         def _fetch():
             client = arxiv.Client()
-            search = arxiv.Search(
-                query=query,
-                max_results=3,
-                sort_by=arxiv.SortCriterion.Relevance,
-            )
+            search = arxiv.Search(query=query, max_results=3,
+                                  sort_by=arxiv.SortCriterion.Relevance)
             return [
                 f"Title: {paper.title}\nAuthors: {', '.join(a.name for a in paper.authors)}\nPublished: {paper.published.date()}\nSummary: {paper.summary[:600]}\nURL: {paper.entry_id}"
                 for paper in client.results(search)
             ]
-
         papers = await asyncio.to_thread(_fetch)
         return "\n\n---\n\n".join(papers) if papers else "No papers found."
     except Exception as e:
@@ -227,10 +257,7 @@ duckduckgo_runner = DuckDuckGoSearchRun()
 
 @tool
 async def ollama_web_search(query: str) -> str:
-    """
-    Search the web using Ollama's native web search feature for real-time information, 
-    current events, and online articles.
-    """
+    """Search the web using Ollama's native web search feature for real-time information."""
     api_key = os.getenv("OLLAMA_API_KEY")
     if not api_key:
         return "OLLAMA_API_KEY is missing from environment variables."
@@ -244,20 +271,14 @@ async def ollama_web_search(query: str) -> str:
             return client.web_search(query)
 
         res = await asyncio.to_thread(_search)
-
-        # Format results into readable text if returns dict or object list
         if isinstance(res, dict) and "results" in res:
-            formatted = []
-            for item in res["results"]:
-                title = item.get("title", "No Title")
-                snippet = item.get("snippet", "")
-                url = item.get("url", "")
-                formatted.append(
-                    f"Title: {title}\nSummary: {snippet}\nURL: {url}")
+            formatted = [
+                f"Title: {item.get('title')}\nSummary: {item.get('snippet')}\nURL: {item.get('url')}"
+                for item in res["results"]
+            ]
             return "\n\n---\n\n".join(formatted) if formatted else "No results found."
 
         return str(res)
-
     except Exception as e:
         return f"Ollama web search failed: {e}"
 
@@ -298,21 +319,14 @@ tools = [
 LLM & Prompt
 """
 
-
 llm = ChatOllama(
     base_url="https://ollama.com",
     model="gpt-oss:120b",
     temperature=0,
-    headers={
-        "Authorization": f"Bearer {os.environ.get('OLLAMA_API_KEY')}"
-    },
-    client_kwargs={
-        "headers": {
-            "Authorization": f"Bearer {os.environ.get('OLLAMA_API_KEY')}"
-        }
-    }
+    headers={"Authorization": f"Bearer {os.environ.get('OLLAMA_API_KEY')}"},
+    client_kwargs={"headers": {
+        "Authorization": f"Bearer {os.environ.get('OLLAMA_API_KEY')}"}}
 )
-
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -324,90 +338,37 @@ prompt = ChatPromptTemplate.from_messages(
 
 1. **Wolfram Alpha (`wolfram_alpha_search`)**:
    - Primary tool for exact calculations, mathematical equations, physics, chemistry, unit conversions, scientific constants, and exact data metrics.
-   - mathematics
-   - calculus
-   - algebra
-   - differential equations
-   - integrals
-   - derivatives
-   - physics
-   - chemistry
-   - engineering
-   - astronomy
-   - unit conversions
-   - scientific constants
-   - geography statistics
+   - Domain: Mathematics, calculus, algebra, differential equations, integrals, derivatives, physics, chemistry, engineering, astronomy, unit conversions, geography statistics.
 
 2. **Wikipedia (`wikipedia_search`)**:
-   - Primary tool for encyclopedia knowledge, historical events, biographies, geography, and foundational concepts.
-   - general knowledge
-   - history
-   - biographies
-   - geography
-   - famous people
-   - countries
-   - encyclopedia information
+   - Primary tool for background context, historical events, biographies, geography, and general encyclopedia knowledge.
+   - Domain: History, biographies, famous people, countries, general knowledge concepts.
 
 3. **ArXiv (`arxiv_search`)**:
-   - Use exclusively for academic pre-prints in AI, ML, Computer Science, Physics, and Mathematics research papers.
-   - Artificial Intelligence
-   - Machine Learning
-   - Computer Science
-   - Mathematics
-   - Physics
-   - scientific papers
+   - Primary tool for academic pre-prints and scientific research papers.
+   - Domain: Artificial Intelligence, Machine Learning, Computer Science, Physics, and Mathematics research papers.
 
 4. **PubMed (`pubmed_search`)**:
-   - Use for medical, healthcare, biomedical, and clinical research literature.
-   - medicine
-   - diseases
-   - healthcare
-   - biology
-   - clinical research
-   - biomedical literature
+   - Primary tool for medical, healthcare, biomedical, and clinical research literature.
+   - Domain: Medicine, diseases, healthcare, biology, clinical research.
 
 5. **Ollama Web Search (`ollama_web_search`)**:
-   - Primary tool for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
-   - Use for quick real-time web lookups, current news, and general online references.
-   - recent news
-   - real-time information
-   - current events
-   - online articles
-   - quick web searches
+   - Primary tool for fast, real-time web lookups, current events, online news articles, and general web queries using Ollama's native search API.
+   - Domain: Real-time information, current news, online references, quick web queries.
 
 6. **DuckDuckGo (`duckduckgo_search`)**:
-   - Use for live internet searches, recent news, real-time facts, tech stack documentation, and general web browsing.
-   - recent news
-   - websites
-   - current events
-   - programming questions
-   - quick web searches
+   - Fallback web search engine for technical documentation, programming troubleshooting, and general web browsing.
+   - Domain: Programming questions, technical stack documentation, website lookups.
 
 7. **Tavily Search (`tavily_search`)**:
-   - Use for complex web retrieval queries requiring deep content summaries from real-time web pages.
-   - deep web research
-   - comprehensive summaries
-   - recent online information
-   - multiple web pages
-
-7. **Ollama Web Search (`ollama_web_search`)**:
-   - Primary tool for running searches directly through Ollama's web search client.
-   - Use for quick real-time web lookups, current news, and general online references.
-   - real-time information
-   - current events
-   - online articles
+   - Specialized search engine for deep, multi-page web retrieval and comprehensive web research summaries.
+   - Domain: In-depth web research, complex multi-source web queries, comprehensive summaries.
 
 ### General & Formatting Rules:
 
 - Always choose the most appropriate tool based on the user's domain instead of guessing.
 - If multiple tools are required, call them sequentially.
 - If no tool is needed (e.g., reasoning, explanations, code generation, writing, or general conversation), answer directly.
-
-### Output Formatting Rules
-
-- Always detect the type of content the user is requesting and format it appropriately.
-- Whenever the output represents a complete file, document, configuration, script, template, or structured content, wrap the entire output inside a properly labeled Markdown code fence.
-- Never output complete files or structured content as raw text.
 
 Examples:
 
@@ -531,25 +492,162 @@ agent_executor = AgentExecutor(
     agent=agent,
     tools=tools,
     verbose=True,
-    max_iterations=5,
+    max_iterations=15,
     handle_parsing_errors=True,
     return_intermediate_steps=True,
 )
 
 
+def persist_messages_to_postgres(session_id: str, messages: list):
+    """Flushes full message list into Postgres database synchronously within thread."""
+    database = SessionLocal()
+    try:
+        # Clear existing logs for session or append missing ones
+        database.query(ChatLog).filter(
+            ChatLog.session_id == session_id).delete()
+
+        database_records = []
+        for message in messages:
+            role = "human" if isinstance(message, HumanMessage) else "ai"
+            database_records.append(
+                ChatLog(session_id=session_id, role=role,
+                        content=message.content)
+            )
+
+        database.add_all(database_records)
+        database.commit()
+        print(
+            f"✅ Successfully persisted {len(database_records)} messages to PostgreSQL for session: {session_id}")
+    except Exception as err:
+        database.rollback()
+        print(f"❌ Failed to persist chat history to Postgres: {err}")
+    finally:
+        database.close()
+
+
 @app.get("/")
 async def home(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={"request": request},
-    )
+    return templates.TemplateResponse(request=request, name="index.html", context={"request": request})
+
+
+@app.get(
+    "/conversations",
+    response_model=List[ConversationSummarySchema],
+    tags=["Conversations"],
+    summary="Get summary of all conversation sessions"
+)
+async def get_all_conversations(database: Session = Depends(get_database)):
+    """
+    Returns a list of all session IDs with message counts and last update timestamps.
+    """
+    try:
+        results = (
+            database.query(
+                ChatLog.session_id,
+                func.count(ChatLog.id).label("message_count"),
+                func.max(ChatLog.timestamp).label("last_updated")
+            )
+            .group_by(ChatLog.session_id)
+            .order_by(func.max(ChatLog.timestamp).desc())
+            .all()
+        )
+
+        return [
+            ConversationSummarySchema(
+                session_id=row.session_id,
+                message_count=row.message_count,
+                last_updated=row.last_updated
+            )
+            for row in results
+        ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch conversation summaries: {str(e)}"
+        )
+
+
+@app.get(
+    "/conversations/{session_id}",
+    response_model=ConversationDetailSchema,
+    tags=["Conversations"],
+    summary="Get full conversation transcript by Session ID"
+)
+async def get_conversation_by_id(session_id: str, database: Session = Depends(get_database)):
+    """
+    Fetch all chat messages belonging to a specific session ID.
+    """
+    try:
+        logs = (
+            database.query(ChatLog)
+            .filter(ChatLog.session_id == session_id)
+            .order_by(ChatLog.timestamp.asc())
+            .all()
+        )
+
+        if not logs:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Conversation with session_id '{session_id}' not found."
+            )
+
+        messages = [ChatMessageSchema.model_validate(log) for log in logs]
+
+        return ConversationDetailSchema(
+            session_id=session_id,
+            messages=messages
+        )
+    except HTTPException as http_err:
+        raise http_err
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch conversation transcript: {str(e)}"
+        )
+
+
+@app.get(
+    "/conversations/all/grouped",
+    response_model=Dict[str, List[ChatMessageSchema]],
+    tags=["Conversations"],
+    summary="Get all raw conversations grouped by Session ID"
+)
+async def get_all_conversations_full(database: Session = Depends(get_database)):
+    """
+    Fetch all messages across all sessions grouped by session_id.
+    """
+    try:
+        logs = database.query(ChatLog).order_by(
+            ChatLog.session_id, ChatLog.timestamp.asc()).all()
+
+        grouped: Dict[str, List[ChatMessageSchema]] = {}
+        for log in logs:
+            if log.session_id not in grouped:
+                grouped[log.session_id] = []
+            grouped[log.session_id].append(
+                ChatMessageSchema.model_validate(log))
+
+        return grouped
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch all conversations: {str(e)}"
+        )
 
 
 @app.websocket("/ws/chat")
-async def websocket_chat(websocket: WebSocket):
+async def websocket_chat(
+    websocket: WebSocket,
+    session_id: str = Query("default_session")
+):
     await manager.connect(websocket)
-    chat_history = []
+
+    # Initialize Redis Chat Message History
+    redis_history = RedisChatMessageHistory(
+        session_id=session_id,
+        url=REDIS_URL,
+        ttl=86400
+    )
 
     try:
         while True:
@@ -560,21 +658,35 @@ async def websocket_chat(websocket: WebSocket):
                 continue
 
             try:
+                # Load ALL chat history (No truncation/MAX_CHAT_HISTORY)
+                current_messages = redis_history.messages
+
                 result = await agent_executor.ainvoke(
                     {
                         "question": question,
-                        "chat_history": chat_history,
+                        "chat_history": current_messages,
                     }
                 )
 
                 answer = result.get(
                     "output", "Sorry, I couldn't find an answer.")
 
-                chat_history.append(HumanMessage(content=question))
-                chat_history.append(AIMessage(content=answer))
+                # 1. Update Redis Chat Memory
+                redis_history.add_user_message(question)
+                redis_history.add_ai_message(answer)
 
-                if len(chat_history) > MAX_CHAT_HISTORY:
-                    chat_history = chat_history[-MAX_CHAT_HISTORY:]
+                # 2. Check turn count in Redis
+                counter_key = f"counter:{session_id}"
+                turn_count = redis_client.incr(counter_key)
+
+                # 3. Interval persistence trigger to PostgreSQL
+                if turn_count % FLUSH_INTERVAL == 0:
+                    updated_messages = redis_history.messages
+                    await asyncio.to_thread(
+                        persist_messages_to_postgres,
+                        session_id,
+                        updated_messages
+                    )
 
                 await manager.send_message(f"AI: {answer}", websocket)
 
