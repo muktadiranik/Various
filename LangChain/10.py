@@ -43,6 +43,7 @@ from langchain_ollama import ChatOllama
 from langchain_tavily import TavilySearch
 from pydantic import BaseModel, ConfigDict, Field
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 from sqlalchemy import Column, DateTime, Integer, String, Text, create_engine, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
@@ -141,7 +142,6 @@ class PaginatedGroupedConversations(BaseModel):
 wikipedia.set_user_agent("KnowledgeChatbot/1.0 (contact@yourdomain.com)")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-FLUSH_INTERVAL = 5  # Flush to Postgres every 5 message interactions
 HISTORY_TTL = 86400
 AGENT_TIMEOUT = 120
 RESULT_SEPARATOR = "\n\n---\n\n"
@@ -522,8 +522,7 @@ def persist_messages_to_postgres(session_id: str, messages: list[BaseMessage]) -
         if any(role not in {"human", "ai"} for role, _ in transcript):
             raise ValueError("Only human and AI messages can be persisted")
         if list(saved) != transcript[: len(saved)]:
-            raise ValueError(
-                "Cached history does not match the saved transcript")
+            raise ValueError("Chat history does not match the saved transcript")
 
         database.add_all(
             ChatLog(
@@ -531,7 +530,7 @@ def persist_messages_to_postgres(session_id: str, messages: list[BaseMessage]) -
                 role=message.type,
                 content=message.content,
             )
-            for message in messages[len(saved):]
+            for message in messages[len(saved) :]
         )
 
 
@@ -552,49 +551,57 @@ def load_persisted_messages(session_id: str) -> list[BaseMessage]:
 
 
 async def load_chat_history(session_id: str) -> list[BaseMessage]:
-    """Keep the existing RedisChatMessageHistory key and serialization format."""
-    redis_client = app.state.redis
-    history_key = f"message_store:{session_id}"
-    items = await redis_client.lrange(history_key, 0, -1)
-    if items:
-        return messages_from_dict([json.loads(item) for item in reversed(items)])
-
+    """Read durable history, retaining compatible unflushed legacy cache entries."""
+    # PostgreSQL is authoritative even if Redis contains an older snapshot after
+    # a failed cache refresh. A cache miss or outage must not lose prior turns.
     messages = await asyncio.to_thread(load_persisted_messages, session_id)
-    if messages:
-        async with redis_client.pipeline(transaction=True) as pipeline:
-            pipeline.lpush(
-                history_key, *(json.dumps(message_to_dict(m))
-                               for m in messages)
-            )
-            pipeline.expire(history_key, HISTORY_TTL)
-            await pipeline.execute()
+    try:
+        items = await app.state.redis.lrange(f"message_store:{session_id}", 0, -1)
+        cached_messages = messages_from_dict(
+            [json.loads(item) for item in reversed(items)]
+        )
+    except (RedisError, ValueError, TypeError, KeyError):
+        logger.warning("Chat cache unavailable or invalid; using database history")
+        return messages
+
+    # The previous batched writer may have left newer turns only in Redis.
+    # Preserve them on the next save, but never replace a saved transcript with
+    # a shorter or conflicting cache snapshot.
+    if len(cached_messages) > len(messages):
+        saved_prefix_matches = all(
+            saved.type == cached.type and saved.content == cached.content
+            for saved, cached in zip(messages, cached_messages)
+        )
+        if saved_prefix_matches and all(
+            message.type in {"human", "ai"} for message in cached_messages
+        ):
+            return cached_messages
+        logger.warning("Ignoring conflicting chat cache; using database history")
     return messages
 
 
-async def store_chat_turn(session_id: str, messages: list[BaseMessage]) -> int:
-    """Atomically save both messages, increment the turn count, and refresh TTLs."""
-    history_key = f"message_store:{session_id}"
-    counter_key = f"counter:{session_id}"
-    async with app.state.redis.pipeline(transaction=True) as pipeline:
-        pipeline.lpush(history_key, *(json.dumps(message_to_dict(m))
-                       for m in messages))
-        pipeline.expire(history_key, HISTORY_TTL)
-        pipeline.incr(counter_key)
-        pipeline.expire(counter_key, HISTORY_TTL)
-        results = await pipeline.execute()
-    return int(results[2])
-
-
-async def flush_chat_history(session_id: str, messages: list[BaseMessage]) -> bool:
-    try:
-        # A cancelled await cannot stop a running thread. Wait for the transaction
-        # before releasing the session lock or attempting another flush.
-        with CancelScope(shield=True):
-            await asyncio.to_thread(persist_messages_to_postgres, session_id, messages)
-        return True
-    except (SQLAlchemyError, ValueError):
-        logger.exception("Failed to persist chat history")
-        return False
+async def store_chat_turn(session_id: str, messages: list[BaseMessage]) -> None:
+    """Commit the complete transcript before refreshing the best-effort cache."""
+    # Keep the session lock until the transaction finishes, including during
+    # ASGI cancellation. Database errors propagate: never acknowledge an unsaved
+    # turn as successful or wait for a disconnect to make it durable.
+    with CancelScope(shield=True):
+        await asyncio.to_thread(persist_messages_to_postgres, session_id, messages)
+        history_key = f"message_store:{session_id}"
+        try:
+            async with app.state.redis.pipeline(transaction=True) as pipeline:
+                # Replace rather than append so retries or stale caches cannot
+                # duplicate messages. Preserve RedisChatMessageHistory's format.
+                pipeline.delete(history_key)
+                if messages:
+                    pipeline.lpush(
+                        history_key,
+                        *(json.dumps(message_to_dict(message)) for message in messages),
+                    )
+                    pipeline.expire(history_key, HISTORY_TTL)
+                await pipeline.execute()
+        except RedisError:
+            logger.warning("Chat cache refresh failed; transcript is saved in database")
 
 
 # ==========================================
@@ -773,8 +780,6 @@ async def websocket_chat(
     session_id: str = Query("default_session", min_length=1, max_length=255),
 ):
     await manager.connect(websocket, session_id)
-    messages: list[BaseMessage] = []
-    pending_flush = False
 
     try:
         while True:
@@ -790,8 +795,7 @@ async def websocket_chat(
                         result = await get_agent_executor().ainvoke(
                             {"question": question, "chat_history": messages}
                         )
-                    answer = result.get(
-                        "output") or "Sorry, I couldn't find an answer."
+                    answer = result.get("output") or "Sorry, I couldn't find an answer."
                     if not isinstance(answer, str):
                         answer = json.dumps(answer, default=str)
 
@@ -799,18 +803,18 @@ async def websocket_chat(
                         HumanMessage(content=question),
                         AIMessage(content=answer),
                     ]
-                    turn_count = await store_chat_turn(session_id, turn)
-                    messages = [*messages, *turn]
-                    pending_flush = True
-                    if turn_count % FLUSH_INTERVAL == 0:
-                        pending_flush = not await flush_chat_history(
-                            session_id, messages
-                        )
+                    await store_chat_turn(session_id, [*messages, *turn])
 
                 await manager.send_message(f"AI: {answer}", websocket)
 
             except WebSocketDisconnect:
                 raise
+            except SQLAlchemyError:
+                logger.exception("Failed to save chat request")
+                await manager.send_message(
+                    "AI: Sorry, your chat could not be saved. Please try again.",
+                    websocket,
+                )
             except Exception:
                 logger.exception("Failed to process chat request")
                 await manager.send_message(
@@ -823,26 +827,7 @@ async def websocket_chat(
     except Exception:
         logger.exception("WebSocket error")
     finally:
-        try:
-            # ASGI cancellation must not interrupt a final database transaction.
-            with CancelScope(shield=True):
-                if pending_flush:
-                    async with manager.session_lock(session_id):
-                        # Re-read to include turns completed by another connection.
-                        try:
-                            latest_messages = await load_chat_history(session_id)
-                        except Exception:
-                            logger.warning(
-                                "Redis unavailable during final history flush"
-                            )
-                            latest_messages = messages
-                        if len(latest_messages) < len(messages):
-                            latest_messages = messages
-                        await flush_chat_history(
-                            session_id, latest_messages or messages
-                        )
-        finally:
-            manager.disconnect(websocket, session_id)
+        manager.disconnect(websocket, session_id)
 
 
 if __name__ == "__main__":

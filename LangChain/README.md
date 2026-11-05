@@ -1,0 +1,44 @@
+# Knowledge chatbot (`10.py`)
+
+## Chat storage
+
+- Each completed exchange is committed to PostgreSQL before its successful
+  WebSocket reply is sent: one `human` row and one `ai` row. There is no
+  application-imposed limit on the number of stored messages.
+- Both rows are saved in one transaction. Existing transcript rows are never
+  deleted, and re-saving the same transcript does not duplicate messages.
+- Redis is a best-effort cache with a 24-hour TTL, not durable storage. Cache
+  failure, expiration, or an outdated snapshot does not hide saved messages.
+  History is read from PostgreSQL; compatible newer Redis entries left by the
+  previous batched writer are included in the next successful save.
+- Database failures return an error instead of a successful chat reply. The
+  application no longer depends on a five-turn batch or a clean disconnect to
+  persist completed exchanges. A question whose agent call fails before an
+  answer is produced is not a completed exchange and is not stored.
+
+The old five-exchange flush interval made PostgreSQL update in batches of **10
+rows**, not a maximum of 10 rows. Messages that existed only in Redis and have
+already expired or been deleted cannot be recovered by this change.
+
+## Reading saved chats
+
+Read endpoints remain paginated; their `limit` parameters do not restrict storage:
+
+- `/conversations?limit=20&offset=0`: session summaries.
+- `/conversations/{session_id}?limit=50&offset=0`: messages for one session.
+- `/conversations/all/grouped?limit=10&offset=0`: full messages for 10 sessions.
+
+Use `meta.total_items` and `meta.has_next`, increasing `offset` by `limit` to
+retrieve subsequent pages.
+
+## Regression tests
+
+From the repository root using the existing virtual environment:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest LangChain/tests/test_chat_persistence.py -q -p no:cacheprovider
+```
+
+Tests exercise the real WebSocket handler, SQLAlchemy persistence, and REST
+pagination against an isolated SQLite database with in-memory Redis and agent
+test doubles. They do not contact PostgreSQL, Redis, or external model providers.
