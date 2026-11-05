@@ -7,7 +7,10 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
 
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
@@ -35,16 +38,25 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
+    />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
     <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}" />
   </head>
 
-  <body class="h-screen w-screen flex flex-col bg-[#131314] text-[#e3e2e6] font-sans antialiased overflow-hidden relative">
-    <header class="h-14 bg-[#131314] border-b border-[#282a2c]/60 sticky top-0 z-20 flex items-center px-4 sm:px-6 w-full shrink-0 justify-between">
+  <body
+    class="h-screen w-screen flex flex-col bg-[#131314] text-[#e3e2e6] font-sans antialiased overflow-hidden relative"
+  >
+    <header
+      class="h-14 bg-[#131314] border-b border-[#282a2c]/60 sticky top-0 z-20 flex items-center px-4 sm:px-6 w-full shrink-0 justify-between"
+    >
       <div class="flex items-center gap-2.5">
-        <div class="h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+        <div
+          class="h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0"
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-4 w-4"
@@ -53,7 +65,8 @@
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
-            stroke-linejoin="round">
+            stroke-linejoin="round"
+          >
             <path d="M12 8V4H8"></path>
             <rect width="16" height="12" x="4" y="8" rx="2"></rect>
             <path d="M2 14h2"></path>
@@ -63,22 +76,49 @@
           </svg>
         </div>
 
-        <span class="font-medium text-base text-[#e3e2e6] tracking-tight"> LANGCHAIN AI CORE </span>
+        <span class="font-medium text-base text-[#e3e2e6] tracking-tight">
+          LANGCHAIN AI CORE
+        </span>
       </div>
     </header>
 
-    <main class="flex-1 flex flex-col w-full h-[calc(100vh-3.5rem)] overflow-hidden relative">
-      <div id="messages" class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 custom-scrollbar w-full max-w-3xl mx-auto space-y-8" role="log" aria-live="polite"></div>
+    <main
+      class="flex-1 flex flex-col w-full h-[calc(100vh-3.5rem)] overflow-hidden relative"
+    >
+      <div
+        id="messages"
+        class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 custom-scrollbar w-full max-w-3xl mx-auto space-y-8"
+        role="log"
+        aria-live="polite"
+      ></div>
 
-      <div id="typing-indicator" class="hidden px-4 sm:px-6 mb-3 w-full max-w-3xl mx-auto">
+      <div
+        id="typing-indicator"
+        class="hidden px-4 sm:px-6 mb-3 w-full max-w-3xl mx-auto"
+      >
         <div class="flex items-center gap-3 text-zinc-400 text-sm">
-          <div class="h-7 w-7 rounded-full flex items-center justify-center text-blue-400 shrink-0">
+          <div
+            class="h-7 w-7 rounded-full flex items-center justify-center text-blue-400 shrink-0"
+          >
             <svg class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="3"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              ></path>
             </svg>
           </div>
-          <span class="text-zinc-400 text-sm font-medium">AI is thinking...</span>
+          <span class="text-zinc-400 text-sm font-medium"
+            >AI is thinking...</span
+          >
         </div>
       </div>
 
@@ -86,20 +126,23 @@
         <form
           id="input-area"
           class="max-w-3xl mx-auto relative flex items-end bg-[#1e1e1f] border border-[#282a2c] rounded-3xl p-2.5 px-4 focus-within:border-zinc-500 shadow-xl transition-all w-full gap-2"
-          onsubmit="sendMessage(event)">
+          onsubmit="sendMessage(event)"
+        >
           <textarea
             id="messageText"
             rows="1"
             class="flex-1 bg-transparent text-[#e3e2e6] placeholder-[#8e9196] resize-none px-2 py-2 focus:outline-none max-h-40 text-sm sm:text-base leading-relaxed custom-scrollbar"
             placeholder="Ask a question..."
             autocomplete="off"
-            aria-label="Message prompt"></textarea>
+            aria-label="Message prompt"
+          ></textarea>
 
           <button
             type="submit"
             id="sendBtn"
             class="h-10 w-10 rounded-full bg-[#e3e2e6] hover:bg-white text-[#131314] flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
-            aria-label="Send Message">
+            aria-label="Send Message"
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               class="h-5 w-5"
@@ -108,7 +151,8 @@
               stroke="currentColor"
               stroke-width="2.5"
               stroke-linecap="round"
-              stroke-linejoin="round">
+              stroke-linejoin="round"
+            >
               <path d="M12 19V5M5 12l7-7 7 7" />
             </svg>
           </button>
@@ -117,14 +161,21 @@
     </main>
 
     <script>
-      const ws = new WebSocket("wss://excusable-fiscally-confiding.ngrok-free.dev/ws/chat");
+      const ws = new WebSocket(
+        "wss://agreeably-caucus-giddiness.ngrok-free.dev/ws/chat",
+      );
       const typingIndicator = document.getElementById("typing-indicator");
       const textarea = document.getElementById("messageText");
       const sendBtn = document.getElementById("sendBtn");
 
       // HTML Escape Helper
       function escapeHtml(str) {
-        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
       }
 
       // Copy Code Block Handler
@@ -231,12 +282,14 @@
 
         if (isUser) {
           const bubble = document.createElement("div");
-          bubble.className = "max-w-[85%] bg-[#282a2c] text-[#e3e2e6] px-5 py-3.5 rounded-3xl rounded-tr-md whitespace-pre-wrap break-words leading-relaxed";
+          bubble.className =
+            "max-w-[85%] bg-[#282a2c] text-[#e3e2e6] px-5 py-3.5 rounded-3xl rounded-tr-md whitespace-pre-wrap break-words leading-relaxed";
           bubble.textContent = text;
           messageRow.appendChild(bubble);
         } else {
           const avatar = document.createElement("div");
-          avatar.className = "h-7 w-7 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 mt-1";
+          avatar.className =
+            "h-7 w-7 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 mt-1";
           avatar.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 8V4H8"></path>
