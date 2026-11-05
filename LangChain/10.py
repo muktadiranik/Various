@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # 1. Database & ORM Configuration
 # ==========================================
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://postgres:root@localhost:5432/knowledge_database"
+    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/knowledge_database"
 )
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
@@ -522,7 +522,8 @@ def persist_messages_to_postgres(session_id: str, messages: list[BaseMessage]) -
         if any(role not in {"human", "ai"} for role, _ in transcript):
             raise ValueError("Only human and AI messages can be persisted")
         if list(saved) != transcript[: len(saved)]:
-            raise ValueError("Cached history does not match the saved transcript")
+            raise ValueError(
+                "Cached history does not match the saved transcript")
 
         database.add_all(
             ChatLog(
@@ -530,7 +531,7 @@ def persist_messages_to_postgres(session_id: str, messages: list[BaseMessage]) -
                 role=message.type,
                 content=message.content,
             )
-            for message in messages[len(saved) :]
+            for message in messages[len(saved):]
         )
 
 
@@ -562,7 +563,8 @@ async def load_chat_history(session_id: str) -> list[BaseMessage]:
     if messages:
         async with redis_client.pipeline(transaction=True) as pipeline:
             pipeline.lpush(
-                history_key, *(json.dumps(message_to_dict(m)) for m in messages)
+                history_key, *(json.dumps(message_to_dict(m))
+                               for m in messages)
             )
             pipeline.expire(history_key, HISTORY_TTL)
             await pipeline.execute()
@@ -574,7 +576,8 @@ async def store_chat_turn(session_id: str, messages: list[BaseMessage]) -> int:
     history_key = f"message_store:{session_id}"
     counter_key = f"counter:{session_id}"
     async with app.state.redis.pipeline(transaction=True) as pipeline:
-        pipeline.lpush(history_key, *(json.dumps(message_to_dict(m)) for m in messages))
+        pipeline.lpush(history_key, *(json.dumps(message_to_dict(m))
+                       for m in messages))
         pipeline.expire(history_key, HISTORY_TTL)
         pipeline.incr(counter_key)
         pipeline.expire(counter_key, HISTORY_TTL)
@@ -611,7 +614,8 @@ def home(request: Request):
     summary="Get paginated summary of all conversation sessions",
 )
 def get_all_conversations(
-    limit: int = Query(20, ge=1, le=100, description="Number of sessions per page"),
+    limit: int = Query(
+        20, ge=1, le=100, description="Number of sessions per page"),
     offset: int = Query(0, ge=0, description="Number of sessions to skip"),
     database: Session = Depends(get_database),
 ):
@@ -623,7 +627,8 @@ def get_all_conversations(
         ).group_by(ChatLog.session_id)
 
         total_items = (
-            database.query(func.count(func.distinct(ChatLog.session_id))).scalar() or 0
+            database.query(func.count(func.distinct(
+                ChatLog.session_id))).scalar() or 0
         )
 
         results = (
@@ -664,12 +669,14 @@ def get_all_conversations(
 )
 def get_conversation_by_id(
     session_id: str,
-    limit: int = Query(50, ge=1, le=200, description="Number of messages per page"),
+    limit: int = Query(
+        50, ge=1, le=200, description="Number of messages per page"),
     offset: int = Query(0, ge=0, description="Number of messages to skip"),
     database: Session = Depends(get_database),
 ):
     try:
-        base_query = database.query(ChatLog).filter(ChatLog.session_id == session_id)
+        base_query = database.query(ChatLog).filter(
+            ChatLog.session_id == session_id)
         total_items = base_query.count()
 
         if total_items == 0:
@@ -708,7 +715,8 @@ def get_conversation_by_id(
     summary="Get paginated sessions with all their raw conversations",
 )
 def get_all_conversations_full(
-    limit: int = Query(10, ge=1, le=50, description="Number of sessions to return"),
+    limit: int = Query(
+        10, ge=1, le=50, description="Number of sessions to return"),
     offset: int = Query(0, ge=0, description="Number of sessions to skip"),
     database: Session = Depends(get_database),
 ):
@@ -740,7 +748,8 @@ def get_all_conversations_full(
             sid: [] for sid in paginated_session_ids
         }
         for log in logs:
-            grouped[log.session_id].append(ChatMessageSchema.model_validate(log))
+            grouped[log.session_id].append(
+                ChatMessageSchema.model_validate(log))
 
         return PaginatedGroupedConversations(
             meta=PaginatedResponseMeta.for_page(total_items, limit, offset),
@@ -781,7 +790,8 @@ async def websocket_chat(
                         result = await get_agent_executor().ainvoke(
                             {"question": question, "chat_history": messages}
                         )
-                    answer = result.get("output") or "Sorry, I couldn't find an answer."
+                    answer = result.get(
+                        "output") or "Sorry, I couldn't find an answer."
                     if not isinstance(answer, str):
                         answer = json.dumps(answer, default=str)
 
