@@ -42,3 +42,29 @@ From the repository root using the existing virtual environment:
 Tests exercise the real WebSocket handler, SQLAlchemy persistence, and REST
 pagination against an isolated SQLite database with in-memory Redis and agent
 test doubles. They do not contact PostgreSQL, Redis, or external model providers.
+
+## Code-writing requests (`12.py`)
+
+Explicit requests such as "Write a function that accepts an arbitrary number of
+inputs and returns their sum" use a tool-free coding prompt. No tool schemas are
+sent to Qwen on this path: the requested function is source code to generate, not
+a tool to invoke. This avoids the small model returning an invented `sum` tool
+call instead of Python code. Conversation history is preserved.
+Restart the app after updating. If a chat already contains incorrect tool-call
+replies, start a new conversation: the small model may still imitate those old
+answers, even with the corrected prompt.
+
+Requests to search external sources still use the tool agent.
+
+## Text-only operation (`12.py`)
+
+The application accepts text messages and returns text or Markdown. Its six
+research tools accept text queries and return text results. No device capture
+or image, video, or audio processing is available.
+
+Text-routing regression tests use a deterministic model and search test double,
+without accessing Ollama or external providers:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest LangChain/tests/test_chatbot_routing.py -q -p no:cacheprovider
+```
