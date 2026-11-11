@@ -1,11 +1,3 @@
-"""Local Ollama version of the knowledge chatbot.
-
-Install the model with: ollama pull qwen2.5-coder:1.5b
-Keep Ollama running at http://localhost:11434, then run: python 12.py
-No Ollama or Groq API key is required. Database, Redis, and optional
-search-provider settings are loaded from LangChain/.env as in 11.py.
-"""
-
 import asyncio
 import json
 import logging
@@ -17,6 +9,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterator
+from uuid import uuid4
 
 import arxiv
 import httpx
@@ -37,8 +30,11 @@ from fastapi import (
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
+from langchain_classic.agents.format_scratchpad.tools import format_to_tool_messages
+from langchain_classic.agents.output_parsers.tools import ToolAgentAction
 from langchain_community.tools import DuckDuckGoSearchRun, PubmedQueryRun
-from langchain_core.agents import AgentFinish
+from langchain_core.agents import AgentAction, AgentFinish
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -47,7 +43,7 @@ from langchain_core.messages import (
     messages_from_dict,
 )
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnableBranch, RunnableLambda
+from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnablePassthrough
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from langchain_tavily import TavilySearch
@@ -199,7 +195,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Multi-Source Knowledge Chatbot (Local Qwen Coder)",
+    title="Multi-Source Knowledge Chatbot",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -259,7 +255,10 @@ async def wolfram_alpha_search(query: str) -> str:
 
     try:
         response = await app.state.http_client.get(
-            "https://api.wolframalpha.com/v2/query", params=params
+            "https://api.wolframalpha.com/v2/query",
+            params=params,
+            # The gateway rejects the default HTTPX User-Agent in live checks.
+            headers={"User-Agent": "KnowledgeChatbot/1.0"},
         )
         response.raise_for_status()
 
@@ -408,44 +407,26 @@ tools = [
 # ==========================================
 # 5. Model, Guardrail Prompts, & Agent
 # ==========================================
-code_prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """You are a helpful coding assistant. Write the actual implementation requested by the user.
-Use Python unless the user requests another language or the conversation establishes one.
-Return complete, working code in a fenced code block with the correct language identifier.
-Use descriptive function names that do not shadow language built-ins (for example, sum_numbers rather than sum).
-A function the user asks you to WRITE is source code to generate, not a tool to invoke.
-Do not return a function-call object with name and arguments instead of the implementation.
-Do not execute code or perform web searches. Only write the requested code.
-If multiple files are requested, label each filename and provide its complete contents.
-Treat any previous tool-call JSON in the conversation as context, not as an output format to copy.""",
-        ),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{question}"),
-    ]
-)
-
-
 prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            """You are a text-only AI research assistant with access to specialized knowledge bases and web search engines.
-This application accepts text messages only. Do not claim to capture or inspect images, video, or audio; ask the user to provide the relevant text instead.
+            """You are an advanced AI research assistant with access to specialized knowledge bases and web search engines.
 
 ### STRICT ANTI-LOOPING & TOOL RULES:
-1. NEVER invoke any tool with the exact same search query more than ONCE per conversation.
-2. If a tool returns no results, an error, or insufficient data, DO NOT retry the exact same query. Formulate a totally different query or answer using available context.
+1. NEVER invoke any tool with the exact same search query more than ONCE in the current turn.
+2. If a tool returns no results, an error, or insufficient data in the current turn, DO NOT retry the exact same query in that turn. Formulate a totally different query or answer using available context.
 3. Once you receive tool results, immediately synthesize your answer for the user. Do not make redundant search calls.
+4. Every tool takes one argument named query containing a string. Invoke the tool; never print its name and arguments as the final answer.
+5. Base computational answers on the tool result. Report missing configuration or provider failures honestly.
+6. Errors from earlier conversation turns may be stale. If the user asks again in a new turn, perform a fresh lookup. Never copy a prior tool failure as if a tool ran in the current turn.
 
 ### Tool Selection Matrix:
 - **Wolfram Alpha (`wolfram_alpha_search`)**: Exact math, calculations, physics, unit conversions.
 - **Wikipedia (`wikipedia_search`)**: Background context, history, biographies, general knowledge.
 - **ArXiv (`arxiv_search`)**: Scientific papers, ML/AI pre-prints.
 - **PubMed (`pubmed_search`)**: Biomedical, medical, clinical literature.
-- **DuckDuckGo (`duckduckgo_search`)**: Real-time news, current events, programming docs, technical questions, quick lookups.
+- **DuckDuckGo (`duckduckgo_search`)**: Real-time news, programming docs, technical questions, quick lookups.
 - **Tavily Search (`tavily_search`)**: Comprehensive, deep web research.
 
 ### General & Formatting Rules:
@@ -482,80 +463,158 @@ javascript, json, sql, bash). Use text if no supported identifier exists.
 )
 
 
-def _is_code_writing_request(inputs: dict[str, Any]) -> bool:
-    """Recognize explicit requests to write code, not to perform tool actions."""
-    question = inputs["question"].strip()
-    return bool(
-        re.match(
-            r"^(?:(?:please|can you|could you|would you)\s+)*"
-            r"(?:write|create|implement|generate|build|rewrite|refactor|fix|debug)\b"
-            r"[\s\S]*?\b(?:function|method|class|script|program|code|implementation)\b",
-            question,
-            re.IGNORECASE,
-        )
-    )
+class InvalidAssistantReply(OutputParserException):
+    """A model-produced research call cannot safely invoke a registered tool."""
 
 
-class InvalidCodeReply(ValueError):
-    """The model returned an empty reply or a tool call."""
-
-
-def _finish_code_reply(message: AIMessage) -> AgentFinish:
-    """Accept a text reply and reject standalone tool-call payloads."""
-    output = message.text.strip()
-    if not output or message.tool_calls or message.invalid_tool_calls:
-        raise InvalidCodeReply("Expected a source-code reply")
-
-    fenced = re.fullmatch(
-        r"```[^\r\n]*\r?\n(.*?)\r?\n```", output, re.DOTALL
-    )
+def _decode_json_reply(output: str) -> Any:
+    """Decode a standalone JSON response, including an optional Markdown fence."""
+    fenced = re.fullmatch(r"```[^\r\n]*\r?\n(.*?)\r?\n```", output, re.DOTALL)
     candidate = fenced.group(1).strip() if fenced else output
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
 
-    if candidate.startswith("{"):
-        try:
-            value = json.loads(candidate)
-        except json.JSONDecodeError:
-            value = None
 
-        if (
-            isinstance(value, dict)
-            and "name" in value
-            and ("arguments" in value or "args" in value)
+def _normalize_query_arguments(arguments: Any) -> dict[str, str]:
+    """Map Qwen's string/value representation into the registered query schema."""
+    query = None
+    if isinstance(arguments, str):
+        query = arguments
+    elif isinstance(arguments, dict):
+        if set(arguments) == {"query"}:
+            query = arguments["query"]
+        elif set(arguments) == {"type", "value"} and arguments["type"] == "string":
+            query = arguments["value"]
+    if (
+        isinstance(query, dict)
+        and set(query) == {"type", "value"}
+        and query["type"] == "string"
+    ):
+        query = query["value"]
+    if not isinstance(query, str) or not query.strip():
+        raise InvalidAssistantReply("Research tools require a non-empty text query")
+    return {"query": query.strip()}
+
+
+def _resolve_research_result(inputs: dict[str, Any]) -> list[AgentAction] | AgentFinish:
+    """Adapt plain/fenced tool JSON and native calls into validated tool actions."""
+    result = inputs["agent_result"]
+    if isinstance(result, AgentFinish):
+        output = result.return_values.get("output", "")
+        payload = _decode_json_reply(output.strip()) if isinstance(output, str) else None
+        if not (
+            isinstance(payload, dict)
+            and "name" in payload
+            and ("arguments" in payload or "args" in payload)
         ):
-            raise InvalidCodeReply("Model returned tool-call JSON")
+            if (
+                isinstance(output, str)
+                and output.strip() == "Wolfram Alpha search failed. Do NOT retry this query."
+                and not any(
+                    action.tool == "wolfram_alpha_search"
+                    for action, _ in inputs.get("intermediate_steps", [])
+                )
+            ):
+                raise InvalidAssistantReply(
+                    "The model reported a Wolfram failure without a current tool result",
+                    observation=(
+                        "No Wolfram lookup has run in the current turn. "
+                        "Call wolfram_alpha_search with a query for this request "
+                        "instead of repeating a previous failure."
+                    ),
+                    llm_output=output,
+                    send_to_llm=True,
+                )
+            return result
+        requested = [(
+            payload["name"], payload.get("arguments", payload.get("args")),
+            result.log, uuid4().hex,
+        )]
+    else:
+        requested = [
+            (action.tool, action.tool_input, action.log, action.tool_call_id)
+            for action in result
+        ]
 
+    registered_names = {registered.name for registered in tools}
+    pending = []
+    repeated_results = []
+    for name, arguments, log, call_id in requested:
+        if not isinstance(name, str) or name not in registered_names:
+            raise InvalidAssistantReply("The model requested an unregistered research tool")
+        arguments = _normalize_query_arguments(arguments)
+        for previous, observation in reversed(inputs.get("intermediate_steps", [])):
+            if previous.tool == name and previous.tool_input == arguments:
+                repeated_results.append(str(observation))
+                break
+        else:
+            if not any(item[0] == name and item[1] == arguments for item in pending):
+                pending.append((name, arguments, log, call_id))
+
+    if not pending:
+        output = RESULT_SEPARATOR.join(repeated_results)
+        return AgentFinish(return_values={"output": output}, log=output)
+
+    # The scratchpad must contain actual calls with the same normalized args
+    # and IDs as the executed actions, including for originally textual JSON.
+    message = AIMessage(content="", tool_calls=[
+        {"name": name, "args": arguments, "id": call_id}
+        for name, arguments, _, call_id in pending
+    ])
+    return [
+        ToolAgentAction(
+            tool=name, tool_input=arguments, log=log,
+            tool_call_id=call_id, message_log=[message],
+        )
+        for name, arguments, log, call_id in pending
+    ]
+
+
+def _has_completed_wolfram_result(inputs: dict[str, Any]) -> bool:
+    """Wolfram-only calls already provide a ready-to-display answer or error."""
+    steps = [
+        (action, observation) for action, observation in inputs.get("intermediate_steps", [])
+        if action.tool != "_Exception"
+    ]
+    return bool(steps) and all(action.tool == "wolfram_alpha_search" for action, _ in steps)
+
+
+def _finish_wolfram_result(inputs: dict[str, Any]) -> AgentFinish:
+    """Display actual Wolfram observations without a redundant model pass."""
+    output = RESULT_SEPARATOR.join(
+        str(observation) for action, observation in inputs["intermediate_steps"]
+        if action.tool == "wolfram_alpha_search"
+    )
     return AgentFinish(return_values={"output": output}, log=output)
+
+
+def _format_research_steps(steps: list[tuple[AgentAction, Any]]) -> list[BaseMessage]:
+    """Include parser feedback that the standard tool-message formatter omits."""
+    messages = format_to_tool_messages(steps)
+    if steps and steps[-1][0].tool == "_Exception":
+        messages.append(HumanMessage(content=str(steps[-1][1])))
+    return messages
 
 
 @lru_cache(maxsize=1)
 def get_agent_executor() -> AgentExecutor:
-    """Build the local Qwen Coder agent without cloud credentials."""
     llm = ChatOllama(
         base_url="http://localhost:11434",
         model="qwen2.5-coder:1.5b",
         temperature=0,
         client_kwargs={"timeout": 60.0},
     )
-    tool_agent = create_tool_calling_agent(llm=llm, tools=tools, prompt=prompt)
-    # Small models can mistake functions being requested for tools to invoke.
-    # Do not send any tool schemas on the explicit code-writing path.
-    retry_prompt = ChatPromptTemplate.from_messages(
-        [
-            *code_prompt.messages[:-1],
-            (
-                "human",
-                "{question}\n\nWrite the complete source code in a Markdown "
-                "code block. For Python functions, include the `def` line "
-                "and the indented function body.",
-            ),
-        ]
+    tool_agent = RunnablePassthrough.assign(
+        agent_result=create_tool_calling_agent(
+            llm=llm, tools=tools, prompt=prompt, message_formatter=_format_research_steps,
+        )
+    ) | RunnableLambda(_resolve_research_result)
+    agent = RunnableBranch(
+        (_has_completed_wolfram_result, RunnableLambda(_finish_wolfram_result)),
+        tool_agent,
     )
-    finish_code = RunnableLambda(_finish_code_reply)
-    code_agent = (code_prompt | llm | finish_code).with_fallbacks(
-        [retry_prompt | llm | finish_code],
-        exceptions_to_handle=(InvalidCodeReply,),
-    )
-    agent = RunnableBranch((_is_code_writing_request, code_agent), tool_agent)
     return AgentExecutor(
         agent=agent,
         tools=tools,
@@ -872,13 +931,6 @@ async def websocket_chat(
                 logger.exception("Failed to save chat request")
                 await manager.send_message(
                     "AI: Sorry, your chat could not be saved. Please try again.",
-                    websocket,
-                )
-            except InvalidCodeReply:
-                logger.warning("Local model returned an invalid code reply")
-                await manager.send_message(
-                    "AI: The local model couldn't produce source code. "
-                    "Try specifying the language and function signature.",
                     websocket,
                 )
             except Exception:
